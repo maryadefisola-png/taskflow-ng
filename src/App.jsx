@@ -133,7 +133,13 @@ function App() {
         </main>
       ) : (
         <>
-          <nav className="dashboard-nav">
+          <nav
+  className="dashboard-nav"
+  style={{
+    position: 'relative',
+    zIndex: 1000,
+  }}
+>
             <button
               className={`nav-item ${
                 activePage === 'dashboard' ? 'active' : ''
