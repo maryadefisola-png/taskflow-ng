@@ -151,11 +151,10 @@ function App() {
 
             <button
   className="nav-item"
-  onClick={() => alert('Tasks button works!')}
+  onClick={() => setActivePage('tasks')}
 >
-  Tasks
+  TEST TASKS
 </button>
-
             <button
               className={`nav-item ${
                 activePage === 'withdraw' ? 'active' : ''
