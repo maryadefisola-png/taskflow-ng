@@ -41,7 +41,12 @@ function App() {
             <h2>Your Dashboard</h2>
             <p>Track your earnings and rewards in one place.</p>
           </div>
-
+<nav className="dashboard-nav">
+  <button className="nav-item active">Dashboard</button>
+  <button className="nav-item">Tasks</button>
+  <button className="nav-item">Withdraw</button>
+  <button className="nav-item">Referrals</button>
+</nav>
           <div className="balance-grid">
             <section className="balance-card">
               <span>Task Balance</span>
