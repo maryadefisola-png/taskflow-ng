@@ -150,13 +150,11 @@ function App() {
             </button>
 
             <button
-              className={`nav-item ${
-                activePage === 'tasks' ? 'active' : ''
-              }`}
-              onClick={() => setActivePage('tasks')}
-            >
-              Tasks
-            </button>
+  className="nav-item"
+  onClick={() => alert('Tasks button works!')}
+>
+  Tasks
+</button>
 
             <button
               className={`nav-item ${
