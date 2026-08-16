@@ -3,27 +3,41 @@ import './App.css'
 
 function App() {
   const [activeTab, setActiveTab] = useState('Dashboard')
+  const [balance, setBalance] = useState(0)
+  const [completedTasks, setCompletedTasks] = useState([])
 
   const tasks = [
     {
       id: 1,
       title: 'Daily Check-in',
       description: 'Complete your daily check-in.',
-      reward: '₦50',
+      reward: 50,
     },
     {
       id: 2,
       title: 'App Review',
       description: 'Review an app and share your feedback.',
-      reward: '₦100',
+      reward: 100,
     },
     {
       id: 3,
       title: 'Social Task',
       description: 'Complete a simple social media task.',
-      reward: '₦150',
+      reward: 150,
     },
   ]
+
+  const completeTask = (task) => {
+    if (completedTasks.includes(task.id)) {
+      alert('You have already completed this task.')
+      return
+    }
+
+    setBalance(balance + task.reward)
+    setCompletedTasks([...completedTasks, task.id])
+
+    alert(`Task completed! You earned ₦${task.reward}.`)
+  }
 
   return (
     <div className="app">
@@ -65,7 +79,7 @@ function App() {
           <section>
             <div className="balance-card">
               <h3>Task Balance</h3>
-              <strong>₦0.00</strong>
+              <strong>₦{balance.toFixed(2)}</strong>
               <p>From completed tasks</p>
             </div>
 
@@ -81,32 +95,49 @@ function App() {
           <section className="tasks-section">
             <h2>Available Tasks</h2>
 
-            {tasks.map((task) => (
-              <div className="task-card" key={task.id}>
-                <h3>{task.title}</h3>
-                <p>{task.description}</p>
-                <strong>{task.reward}</strong>
+            {tasks.map((task) => {
+              const completed = completedTasks.includes(task.id)
 
-                <button
-                  onClick={() => alert(`${task.title} selected!`)}
-                >
-                  Start Task
-                </button>
-              </div>
-            ))}
+              return (
+                <div className="task-card" key={task.id}>
+                  <h3>{task.title}</h3>
+
+                  <p>{task.description}</p>
+
+                  <strong>₦{task.reward}</strong>
+
+                  <button
+                    onClick={() => completeTask(task)}
+                    disabled={completed}
+                  >
+                    {completed ? 'Completed ✓' : 'Complete Task'}
+                  </button>
+                </div>
+              )
+            })}
           </section>
         )}
 
         {activeTab === 'Withdraw' && (
           <section>
             <h2>Withdraw</h2>
-            <p>Your withdrawal balance is ₦0.00.</p>
+
+            <p>
+              Available balance: <strong>₦{balance.toFixed(2)}</strong>
+            </p>
+
+            <button
+              onClick={() => alert('Withdrawal feature coming soon.')}
+            >
+              Withdraw
+            </button>
           </section>
         )}
 
         {activeTab === 'Referrals' && (
           <section>
             <h2>Referrals</h2>
+
             <p>Invite friends and earn rewards.</p>
           </section>
         )}
