@@ -3,8 +3,16 @@ import './App.css'
 
 function App() {
   const [activeTab, setActiveTab] = useState('Dashboard')
-  const [balance, setBalance] = useState(0)
-  const [completedTasks, setCompletedTasks] = useState([])
+
+  const [balance, setBalance] = useState(() => {
+    const savedBalance = localStorage.getItem('taskflow_balance')
+    return savedBalance ? Number(savedBalance) : 0
+  })
+
+  const [completedTasks, setCompletedTasks] = useState(() => {
+    const savedTasks = localStorage.getItem('taskflow_completed_tasks')
+    return savedTasks ? JSON.parse(savedTasks) : []
+  })
 
   const tasks = [
     {
@@ -33,8 +41,17 @@ function App() {
       return
     }
 
-    setBalance(balance + task.reward)
-    setCompletedTasks([...completedTasks, task.id])
+    const newBalance = balance + task.reward
+    const newCompletedTasks = [...completedTasks, task.id]
+
+    setBalance(newBalance)
+    setCompletedTasks(newCompletedTasks)
+
+    localStorage.setItem('taskflow_balance', newBalance)
+    localStorage.setItem(
+      'taskflow_completed_tasks',
+      JSON.stringify(newCompletedTasks)
+    )
 
     alert(`Task completed! You earned ₦${task.reward}.`)
   }
@@ -123,7 +140,8 @@ function App() {
             <h2>Withdraw</h2>
 
             <p>
-              Available balance: <strong>₦{balance.toFixed(2)}</strong>
+              Available balance:{' '}
+              <strong>₦{balance.toFixed(2)}</strong>
             </p>
 
             <button
