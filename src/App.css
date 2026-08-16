@@ -5,8 +5,8 @@
 body {
   margin: 0;
   font-family: Arial, sans-serif;
-  background: #f4f7fb;
-  color: #172033;
+  background: #07152e;
+  color: white;
 }
 
 button {
@@ -15,30 +15,31 @@ button {
 
 .app {
   min-height: 100vh;
-  background: linear-gradient(135deg, #eef5ff, #f8fbff);
+  background: linear-gradient(160deg, #07152e 0%, #0b3b7a 50%, #061124 100%);
 }
 
 .navbar {
-  background: #0b5cff;
+  background: #06245c;
   color: white;
-  padding: 18px 30px;
+  padding: 18px 25px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
 }
 
 .navbar h1 {
   margin: 0;
   font-size: 24px;
+  color: #ffffff;
 }
 
 .logout-btn {
-  background: white;
-  color: #0b5cff;
+  background: #ffffff;
+  color: #0755d9;
   border: none;
-  padding: 10px 18px;
-  border-radius: 8px;
+  padding: 10px 16px;
+  border-radius: 10px;
   font-weight: bold;
   cursor: pointer;
 }
@@ -50,11 +51,12 @@ button {
 }
 
 .main-content h2 {
+  color: #ffffff;
   margin-bottom: 8px;
 }
 
 .main-content > p {
-  color: #667085;
+  color: #b8c7e0;
 }
 
 .tabs {
@@ -65,44 +67,42 @@ button {
 }
 
 .tabs button {
-  border: none;
-  background: white;
-  color: #344054;
-  padding: 12px 20px;
+  background: #123f7a;
+  color: white;
+  border: 1px solid #2768b8;
+  padding: 12px 18px;
   border-radius: 10px;
   cursor: pointer;
   font-weight: bold;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 .tabs button:hover {
-  background: #0b5cff;
-  color: white;
+  background: #0b75ff;
 }
 
 .balance-card {
-  background: white;
-  border-radius: 16px;
+  background: linear-gradient(145deg, #123d75, #0d2d5c);
+  border: 1px solid #2768b8;
+  border-radius: 18px;
   padding: 25px;
   margin-bottom: 18px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.07);
-  border-left: 5px solid #0b5cff;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
 }
 
 .balance-card h3 {
   margin-top: 0;
-  color: #667085;
+  color: #b8c7e0;
 }
 
 .balance-card strong {
   display: block;
-  font-size: 32px;
-  color: #0b5cff;
+  font-size: 34px;
+  color: #35e39a;
   margin: 10px 0;
 }
 
 .balance-card p {
-  color: #98a2b3;
+  color: #9eb2d1;
 }
 
 .tasks-section {
@@ -115,48 +115,49 @@ button {
 }
 
 .task-card {
-  background: white;
+  background: #102f5c;
   padding: 22px;
-  border-radius: 16px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.07);
-  border: 1px solid #e4e7ec;
+  border-radius: 18px;
+  border: 1px solid #2867ad;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
 }
 
 .task-card h3 {
   margin-top: 0;
-  color: #172033;
+  color: white;
 }
 
 .task-card p {
-  color: #667085;
+  color: #b8c7e0;
   line-height: 1.5;
 }
 
 .task-card strong {
   display: block;
-  color: #12b76a;
-  font-size: 22px;
+  color: #35e39a;
+  font-size: 24px;
   margin: 15px 0;
 }
 
 .task-card button,
 section button {
-  background: #0b5cff;
+  background: #087cff;
   color: white;
   border: none;
   padding: 12px 20px;
-  border-radius: 9px;
+  border-radius: 10px;
   cursor: pointer;
   font-weight: bold;
+  box-shadow: 0 4px 12px rgba(8, 124, 255, 0.3);
 }
 
 .task-card button:hover,
 section button:hover {
-  background: #0847c7;
+  background: #0066d6;
 }
 
 .task-card button:disabled {
-  background: #98a2b3;
+  background: #50627d;
   cursor: not-allowed;
 }
 
