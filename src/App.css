@@ -26,6 +26,7 @@
   padding: 10px 18px;
   border-radius: 10px;
   font-weight: 600;
+  cursor: pointer;
 }
 
 .hero {
@@ -80,6 +81,7 @@
   border-radius: 12px;
   font-weight: 700;
   font-size: 16px;
+  cursor: pointer;
   transition: 0.2s;
 }
 
@@ -88,10 +90,53 @@
   opacity: 0.92;
 }
 
+.primary-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .dashboard {
   max-width: 1100px;
   margin: 0 auto;
   padding: 50px 20px;
+}
+
+.dashboard-nav {
+  max-width: 1100px;
+  margin: 30px auto 0;
+  padding: 8px 20px;
+  display: flex;
+  gap: 10px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  overflow-x: auto;
+  position: relative;
+  z-index: 1000;
+}
+
+.nav-item {
+  border: none;
+  background: transparent;
+  color: #64748b;
+  padding: 12px 18px;
+  border-radius: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  position: relative;
+  z-index: 1001;
+}
+
+.nav-item:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.nav-item.active {
+  background: #16a34a;
+  color: white;
 }
 
 .welcome {
@@ -123,70 +168,4 @@
   background: white;
   padding: 30px;
   border-radius: 18px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 8px 25px rgba(15, 23, 42, 0.05);
-}
-
-.balance-card span {
-  display: block;
-  color: #64748b;
-  margin-bottom: 15px;
-}
-
-.balance-card strong {
-  display: block;
-  font-size: 32px;
-  color: #0f172a;
-  margin-bottom: 8px;
-}
-
-.balance-card small {
-  color: #94a3b8;
-}
-
-@media (max-width: 650px) {
-  .navbar {
-    padding: 18px 20px;
-  }
-
-  .hero-card {
-    padding: 45px 20px;
-  }
-
-  .balance-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .welcome h2 {
-    font-size: 30px;
-  }
-  }.dashboard-nav {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 30px;
-  padding: 8px;
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  overflow-x: auto;
-}
-
-.nav-item {
-  border: none;
-  background: transparent;
-  color: #64748b;
-  padding: 12px 18px;
-  border-radius: 10px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.nav-item:hover {
-  background: #f1f5f9;
-  color: #0f172a;
-}
-
-.nav-item.active {
-  background: #16a34a;
-  color: white;
-  }
+  border: 
