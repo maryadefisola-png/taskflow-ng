@@ -4,6 +4,27 @@ import './App.css'
 function App() {
   const [activeTab, setActiveTab] = useState('Dashboard')
 
+  const tasks = [
+    {
+      id: 1,
+      title: 'Daily Check-in',
+      description: 'Complete your daily check-in.',
+      reward: '₦50',
+    },
+    {
+      id: 2,
+      title: 'App Review',
+      description: 'Review an app and share your feedback.',
+      reward: '₦100',
+    },
+    {
+      id: 3,
+      title: 'Simple Survey',
+      description: 'Complete a short survey.',
+      reward: '₦150',
+    },
+  ]
+
   return (
     <div className="app">
       <header className="navbar">
@@ -52,7 +73,21 @@ function App() {
           )}
 
           {activeTab === 'Tasks' && (
-            <p>Your available tasks will appear here.</p>
+            <div className="tasks-list">
+              {tasks.map((task) => (
+                <div className="task-card" key={task.id}>
+                  <div>
+                    <h3>{task.title}</h3>
+                    <p>{task.description}</p>
+                    <strong>Reward: {task.reward}</strong>
+                  </div>
+
+                  <button className="task-btn">
+                    Start Task
+                  </button>
+                </div>
+              ))}
+            </div>
           )}
 
           {activeTab === 'Withdraw' && (
