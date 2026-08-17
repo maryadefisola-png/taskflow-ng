@@ -5,37 +5,43 @@ function App() {
   const [activeTab, setActiveTab] = useState('Dashboard')
 
   const [balance, setBalance] = useState(() => {
-    const savedBalance = localStorage.getItem('taskflow_balance')
-    return savedBalance ? Number(savedBalance) : 0
+    const saved = localStorage.getItem('taskflow_balance')
+    return saved ? Number(saved) : 0
   })
 
   const [completedTasks, setCompletedTasks] = useState(() => {
-    const savedTasks = localStorage.getItem('taskflow_completed_tasks')
-    return savedTasks ? JSON.parse(savedTasks) : []
+    const saved = localStorage.getItem('taskflow_completed_tasks')
+    return saved ? JSON.parse(saved) : []
   })
 
   const [withdrawals, setWithdrawals] = useState(() => {
-    const savedWithdrawals = localStorage.getItem(
-      'taskflow_withdrawals'
-    )
-    return savedWithdrawals ? JSON.parse(savedWithdrawals) : []
+    const saved = localStorage.getItem('taskflow_withdrawals')
+    return saved ? JSON.parse(saved) : []
   })
 
   const [referrals, setReferrals] = useState(() => {
-    const savedReferrals = localStorage.getItem(
-      'taskflow_referrals'
-    )
-    return savedReferrals ? Number(savedReferrals) : 0
+    const saved = localStorage.getItem('taskflow_referrals')
+    return saved ? Number(saved) : 0
   })
 
   const [referralBalance, setReferralBalance] = useState(() => {
-    const savedReferralBalance = localStorage.getItem(
-      'taskflow_referral_balance'
-    )
-    return savedReferralBalance
-      ? Number(savedReferralBalance)
-      : 0
+    const saved = localStorage.getItem('taskflow_referral_balance')
+    return saved ? Number(saved) : 0
   })
+
+  const [profile, setProfile] = useState(() => {
+    const saved = localStorage.getItem('taskflow_profile')
+
+    return saved
+      ? JSON.parse(saved)
+      : {
+          name: 'TaskFlow User',
+          email: 'user@example.com',
+          phone: '',
+        }
+  })
+
+  const [editingProfile, setEditingProfile] = useState(false)
 
   const [bankName, setBankName] = useState('')
   const [accountName, setAccountName] = useState('')
@@ -43,7 +49,6 @@ function App() {
   const [withdrawAmount, setWithdrawAmount] = useState('')
 
   const referralCode = 'TASKFLOW2026'
-
   const referralLink = `${window.location.origin}?ref=${referralCode}`
 
   const tasks = [
@@ -117,10 +122,10 @@ function App() {
 
     const newWithdrawal = {
       id: Date.now(),
-      amount: amount,
-      bankName: bankName,
-      accountName: accountName,
-      accountNumber: accountNumber,
+      amount,
+      bankName,
+      accountName,
+      accountNumber,
       status: 'Pending',
       date: new Date().toLocaleString(),
     }
@@ -131,7 +136,6 @@ function App() {
     setWithdrawals(newWithdrawals)
 
     localStorage.setItem('taskflow_balance', newBalance)
-
     localStorage.setItem(
       'taskflow_withdrawals',
       JSON.stringify(newWithdrawals)
@@ -142,11 +146,7 @@ function App() {
     setAccountNumber('')
     setWithdrawAmount('')
 
-    alert(
-      `Withdrawal request submitted for ₦${amount.toFixed(
-        2
-      )}.`
-    )
+    alert(`Withdrawal request submitted for ₦${amount.toFixed(2)}.`)
 
     setActiveTab('History')
   }
@@ -169,17 +169,26 @@ function App() {
     setReferrals(newReferrals)
     setReferralBalance(newReferralBalance)
 
-    localStorage.setItem(
-      'taskflow_referrals',
-      newReferrals
-    )
-
+    localStorage.setItem('taskflow_referrals', newReferrals)
     localStorage.setItem(
       'taskflow_referral_balance',
       newReferralBalance
     )
 
     alert(`New referral added! You earned ₦${reward}.`)
+  }
+
+  const saveProfile = () => {
+    localStorage.setItem('taskflow_profile', JSON.stringify(profile))
+    setEditingProfile(false)
+    alert('Profile saved successfully!')
+  }
+
+  const updateProfile = (field, value) => {
+    setProfile({
+      ...profile,
+      [field]: value,
+    })
   }
 
   return (
@@ -222,6 +231,10 @@ function App() {
           <button onClick={() => setActiveTab('Referrals')}>
             Referrals
           </button>
+
+          <button onClick={() => setActiveTab('Profile')}>
+            Profile
+          </button>
         </nav>
 
         {activeTab === 'Dashboard' && (
@@ -237,9 +250,7 @@ function App() {
             <div className="balance-card">
               <h3>Affiliate Balance</h3>
 
-              <strong>
-                ₦{referralBalance.toFixed(2)}
-              </strong>
+              <strong>₦{referralBalance.toFixed(2)}</strong>
 
               <p>From referrals</p>
             </div>
@@ -300,9 +311,7 @@ function App() {
                   type="text"
                   placeholder="Enter account name"
                   value={accountName}
-                  onChange={(e) =>
-                    setAccountName(e.target.value)
-                  }
+                  onChange={(e) => setAccountName(e.target.value)}
                 />
 
                 <label>Account Number</label>
@@ -314,9 +323,7 @@ function App() {
                   placeholder="10-digit account number"
                   value={accountNumber}
                   onChange={(e) =>
-                    setAccountNumber(
-                      e.target.value.replace(/\D/g, '')
-                    )
+                    setAccountNumber(e.target.value.replace(/\D/g, ''))
                   }
                 />
 
@@ -327,9 +334,7 @@ function App() {
                   min="100"
                   placeholder="Minimum ₦100"
                   value={withdrawAmount}
-                  onChange={(e) =>
-                    setWithdrawAmount(e.target.value)
-                  }
+                  onChange={(e) => setWithdrawAmount(e.target.value)}
                 />
 
                 <button type="submit">
@@ -354,18 +359,14 @@ function App() {
                   className="withdrawal-card"
                   key={withdrawal.id}
                 >
-                  <h3>
-                    ₦{withdrawal.amount.toFixed(2)}
-                  </h3>
+                  <h3>₦{withdrawal.amount.toFixed(2)}</h3>
 
                   <p>
-                    <strong>Bank:</strong>{' '}
-                    {withdrawal.bankName}
+                    <strong>Bank:</strong> {withdrawal.bankName}
                   </p>
 
                   <p>
-                    <strong>Account:</strong>{' '}
-                    {withdrawal.accountName}
+                    <strong>Account:</strong> {withdrawal.accountName}
                   </p>
 
                   <p>
@@ -374,8 +375,7 @@ function App() {
                   </p>
 
                   <p>
-                    <strong>Date:</strong>{' '}
-                    {withdrawal.date}
+                    <strong>Date:</strong> {withdrawal.date}
                   </p>
 
                   <span className="pending-status">
@@ -393,8 +393,7 @@ function App() {
               <h2>Refer & Earn</h2>
 
               <p>
-                Invite friends to TaskFlow NG and earn
-                rewards.
+                Invite friends to TaskFlow NG and earn rewards.
               </p>
 
               <h3>Your Referral Code</h3>
@@ -427,9 +426,7 @@ function App() {
             <div className="balance-card">
               <h3>Referral Earnings</h3>
 
-              <strong>
-                ₦{referralBalance.toFixed(2)}
-              </strong>
+              <strong>₦{referralBalance.toFixed(2)}</strong>
 
               <p>Earned from successful referrals.</p>
             </div>
@@ -438,13 +435,96 @@ function App() {
               <h3>Demo Testing</h3>
 
               <p>
-                Use this button only to test the referral
-                reward system.
+                Use this button only to test the referral reward system.
               </p>
 
               <button onClick={simulateReferral}>
                 Simulate Referral +₦50
               </button>
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'Profile' && (
+          <section className="profile-section">
+            <div className="profile-card">
+              <div className="profile-avatar">
+                {profile.name.charAt(0).toUpperCase()}
+              </div>
+
+              <h2>{profile.name}</h2>
+
+              <p>{profile.email}</p>
+            </div>
+
+            <div className="profile-card">
+              <h2>My Profile</h2>
+
+              {editingProfile ? (
+                <>
+                  <label>Full Name</label>
+
+                  <input
+                    type="text"
+                    value={profile.name}
+                    onChange={(e) =>
+                      updateProfile('name', e.target.value)
+                    }
+                  />
+
+                  <label>Email</label>
+
+                  <input
+                    type="email"
+                    value={profile.email}
+                    onChange={(e) =>
+                      updateProfile('email', e.target.value)
+                    }
+                  />
+
+                  <label>Phone Number</label>
+
+                  <input
+                    type="tel"
+                    placeholder="Enter phone number"
+                    value={profile.phone}
+                    onChange={(e) =>
+                      updateProfile('phone', e.target.value)
+                    }
+                  />
+
+                  <button onClick={saveProfile}>
+                    Save Profile
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p>
+                    <strong>Full Name:</strong> {profile.name}
+                  </p>
+
+                  <p>
+                    <strong>Email:</strong> {profile.email}
+                  </p>
+
+                  <p>
+                    <strong>Phone:</strong>{' '}
+                    {profile.phone || 'Not added'}
+                  </p>
+
+                  <p>
+                    <strong>User ID:</strong> TF-
+                    {profile.name
+                      .replace(/\s/g, '')
+                      .slice(0, 6)
+                      .toUpperCase() || 'USER'}
+                  </p>
+
+                  <button onClick={() => setEditingProfile(true)}>
+                    Edit Profile
+                  </button>
+                </>
+              )}
             </div>
           </section>
         )}
