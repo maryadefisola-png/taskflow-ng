@@ -21,10 +21,30 @@ function App() {
     return savedWithdrawals ? JSON.parse(savedWithdrawals) : []
   })
 
+  const [referrals, setReferrals] = useState(() => {
+    const savedReferrals = localStorage.getItem(
+      'taskflow_referrals'
+    )
+    return savedReferrals ? Number(savedReferrals) : 0
+  })
+
+  const [referralBalance, setReferralBalance] = useState(() => {
+    const savedReferralBalance = localStorage.getItem(
+      'taskflow_referral_balance'
+    )
+    return savedReferralBalance
+      ? Number(savedReferralBalance)
+      : 0
+  })
+
   const [bankName, setBankName] = useState('')
   const [accountName, setAccountName] = useState('')
   const [accountNumber, setAccountNumber] = useState('')
   const [withdrawAmount, setWithdrawAmount] = useState('')
+
+  const referralCode = 'TASKFLOW2026'
+
+  const referralLink = `${window.location.origin}?ref=${referralCode}`
 
   const tasks = [
     {
@@ -131,6 +151,37 @@ function App() {
     setActiveTab('History')
   }
 
+  const copyReferralLink = async () => {
+    try {
+      await navigator.clipboard.writeText(referralLink)
+      alert('Referral link copied!')
+    } catch {
+      alert('Copy failed. Please copy the link manually.')
+    }
+  }
+
+  const simulateReferral = () => {
+    const reward = 50
+
+    const newReferrals = referrals + 1
+    const newReferralBalance = referralBalance + reward
+
+    setReferrals(newReferrals)
+    setReferralBalance(newReferralBalance)
+
+    localStorage.setItem(
+      'taskflow_referrals',
+      newReferrals
+    )
+
+    localStorage.setItem(
+      'taskflow_referral_balance',
+      newReferralBalance
+    )
+
+    alert(`New referral added! You earned ₦${reward}.`)
+  }
+
   return (
     <div className="app">
       <header className="navbar">
@@ -186,7 +237,9 @@ function App() {
             <div className="balance-card">
               <h3>Affiliate Balance</h3>
 
-              <strong>₦0.00</strong>
+              <strong>
+                ₦{referralBalance.toFixed(2)}
+              </strong>
 
               <p>From referrals</p>
             </div>
@@ -247,7 +300,9 @@ function App() {
                   type="text"
                   placeholder="Enter account name"
                   value={accountName}
-                  onChange={(e) => setAccountName(e.target.value)}
+                  onChange={(e) =>
+                    setAccountName(e.target.value)
+                  }
                 />
 
                 <label>Account Number</label>
@@ -299,7 +354,9 @@ function App() {
                   className="withdrawal-card"
                   key={withdrawal.id}
                 >
-                  <h3>₦{withdrawal.amount.toFixed(2)}</h3>
+                  <h3>
+                    ₦{withdrawal.amount.toFixed(2)}
+                  </h3>
 
                   <p>
                     <strong>Bank:</strong>{' '}
@@ -331,10 +388,64 @@ function App() {
         )}
 
         {activeTab === 'Referrals' && (
-          <section className="balance-card">
-            <h2>Referrals</h2>
+          <section className="referral-section">
+            <div className="balance-card">
+              <h2>Refer & Earn</h2>
 
-            <p>Invite friends and earn rewards.</p>
+              <p>
+                Invite friends to TaskFlow NG and earn
+                rewards.
+              </p>
+
+              <h3>Your Referral Code</h3>
+
+              <div className="referral-code">
+                {referralCode}
+              </div>
+
+              <h3>Your Referral Link</h3>
+
+              <input
+                type="text"
+                value={referralLink}
+                readOnly
+              />
+
+              <button onClick={copyReferralLink}>
+                Copy Referral Link
+              </button>
+            </div>
+
+            <div className="balance-card">
+              <h3>Total Referrals</h3>
+
+              <strong>{referrals}</strong>
+
+              <p>People who joined using your referral.</p>
+            </div>
+
+            <div className="balance-card">
+              <h3>Referral Earnings</h3>
+
+              <strong>
+                ₦{referralBalance.toFixed(2)}
+              </strong>
+
+              <p>Earned from successful referrals.</p>
+            </div>
+
+            <div className="balance-card">
+              <h3>Demo Testing</h3>
+
+              <p>
+                Use this button only to test the referral
+                reward system.
+              </p>
+
+              <button onClick={simulateReferral}>
+                Simulate Referral +₦50
+              </button>
+            </div>
           </section>
         )}
       </main>
