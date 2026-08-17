@@ -2,6 +2,29 @@ import { useState } from 'react'
 import './App.css'
 
 function App() {
+  // -------------------------
+  // AUTHENTICATION
+  // -------------------------
+
+  const [user, setUser] = useState(() => {
+    const savedUser = localStorage.getItem('taskflow_user')
+    return savedUser ? JSON.parse(savedUser) : null
+  })
+
+  const [authMode, setAuthMode] = useState('login')
+
+  const [authForm, setAuthForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+  })
+
+  const [authError, setAuthError] = useState('')
+
+  // -------------------------
+  // APP STATE
+  // -------------------------
+
   const [activeTab, setActiveTab] = useState('Dashboard')
 
   const [balance, setBalance] = useState(() => {
@@ -51,6 +74,10 @@ function App() {
   const referralCode = 'TASKFLOW2026'
   const referralLink = `${window.location.origin}?ref=${referralCode}`
 
+  // -------------------------
+  // TASKS
+  // -------------------------
+
   const tasks = [
     {
       id: 1,
@@ -72,6 +99,108 @@ function App() {
     },
   ]
 
+  // -------------------------
+  // AUTH FUNCTIONS
+  // -------------------------
+
+  const handleAuthChange = (field, value) => {
+    setAuthForm({
+      ...authForm,
+      [field]: value,
+    })
+
+    setAuthError('')
+  }
+
+  const handleAuth = (event) => {
+    event.preventDefault()
+
+    const email = authForm.email.trim().toLowerCase()
+    const password = authForm.password.trim()
+
+    if (!email || !password) {
+      setAuthError('Please enter your email and password.')
+      return
+    }
+
+    if (authMode === 'signup') {
+      const name = authForm.name.trim()
+
+      if (!name) {
+        setAuthError('Please enter your full name.')
+        return
+      }
+
+      if (password.length < 6) {
+        setAuthError('Password must be at least 6 characters.')
+        return
+      }
+
+      const newUser = {
+        name,
+        email,
+      }
+
+      localStorage.setItem(
+        'taskflow_user',
+        JSON.stringify(newUser)
+      )
+
+      localStorage.setItem(
+        'taskflow_profile',
+        JSON.stringify({
+          name,
+          email,
+          phone: '',
+        })
+      )
+
+      setUser(newUser)
+      setProfile({
+        name,
+        email,
+        phone: '',
+      })
+
+      setAuthForm({
+        name: '',
+        email: '',
+        password: '',
+      })
+
+      setAuthError('')
+      return
+    }
+
+    const savedUser = localStorage.getItem('taskflow_user')
+
+    if (!savedUser) {
+      setAuthError('No account found. Please create an account first.')
+      return
+    }
+
+    const existingUser = JSON.parse(savedUser)
+
+    if (existingUser.email !== email) {
+      setAuthError('Email address does not match the saved account.')
+      return
+    }
+
+    setUser(existingUser)
+    setAuthError('')
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem('taskflow_user')
+
+    setUser(null)
+    setActiveTab('Dashboard')
+  }
+
+  // -------------------------
+  // TASK FUNCTIONS
+  // -------------------------
+
   const completeTask = (task) => {
     if (completedTasks.includes(task.id)) {
       alert('You have already completed this task.')
@@ -85,6 +214,7 @@ function App() {
     setCompletedTasks(newCompletedTasks)
 
     localStorage.setItem('taskflow_balance', newBalance)
+
     localStorage.setItem(
       'taskflow_completed_tasks',
       JSON.stringify(newCompletedTasks)
@@ -92,6 +222,10 @@ function App() {
 
     alert(`Task completed! You earned ₦${task.reward}.`)
   }
+
+  // -------------------------
+  // WITHDRAWAL
+  // -------------------------
 
   const handleWithdraw = (event) => {
     event.preventDefault()
@@ -136,6 +270,7 @@ function App() {
     setWithdrawals(newWithdrawals)
 
     localStorage.setItem('taskflow_balance', newBalance)
+
     localStorage.setItem(
       'taskflow_withdrawals',
       JSON.stringify(newWithdrawals)
@@ -150,6 +285,10 @@ function App() {
 
     setActiveTab('History')
   }
+
+  // -------------------------
+  // REFERRALS
+  // -------------------------
 
   const copyReferralLink = async () => {
     try {
@@ -169,7 +308,11 @@ function App() {
     setReferrals(newReferrals)
     setReferralBalance(newReferralBalance)
 
-    localStorage.setItem('taskflow_referrals', newReferrals)
+    localStorage.setItem(
+      'taskflow_referrals',
+      newReferrals
+    )
+
     localStorage.setItem(
       'taskflow_referral_balance',
       newReferralBalance
@@ -178,11 +321,9 @@ function App() {
     alert(`New referral added! You earned ₦${reward}.`)
   }
 
-  const saveProfile = () => {
-    localStorage.setItem('taskflow_profile', JSON.stringify(profile))
-    setEditingProfile(false)
-    alert('Profile saved successfully!')
-  }
+  // -------------------------
+  // PROFILE
+  // -------------------------
 
   const updateProfile = (field, value) => {
     setProfile({
@@ -191,6 +332,128 @@ function App() {
     })
   }
 
+  const saveProfile = () => {
+    localStorage.setItem(
+      'taskflow_profile',
+      JSON.stringify(profile)
+    )
+
+    const updatedUser = {
+      name: profile.name,
+      email: profile.email,
+    }
+
+    localStorage.setItem(
+      'taskflow_user',
+      JSON.stringify(updatedUser)
+    )
+
+    setUser(updatedUser)
+    setEditingProfile(false)
+
+    alert('Profile saved successfully!')
+  }
+
+  // -------------------------
+  // LOGIN / SIGNUP SCREEN
+  // -------------------------
+
+  if (!user) {
+    return (
+      <div className="app">
+        <div className="auth-container">
+          <div className="auth-card">
+            <h1>TaskFlow NG</h1>
+
+            <p className="auth-subtitle">
+              Earn rewards by completing tasks.
+            </p>
+
+            <div className="auth-tabs">
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode('login')
+                  setAuthError('')
+                }}
+              >
+                Login
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode('signup')
+                  setAuthError('')
+                }}
+              >
+                Create Account
+              </button>
+            </div>
+
+            <form onSubmit={handleAuth}>
+              {authMode === 'signup' && (
+                <>
+                  <label>Full Name</label>
+
+                  <input
+                    type="text"
+                    placeholder="Enter your full name"
+                    value={authForm.name}
+                    onChange={(e) =>
+                      handleAuthChange('name', e.target.value)
+                    }
+                  />
+                </>
+              )}
+
+              <label>Email</label>
+
+              <input
+                type="email"
+                placeholder="Enter your email"
+                value={authForm.email}
+                onChange={(e) =>
+                  handleAuthChange('email', e.target.value)
+                }
+              />
+
+              <label>Password</label>
+
+              <input
+                type="password"
+                placeholder="Enter your password"
+                value={authForm.password}
+                onChange={(e) =>
+                  handleAuthChange('password', e.target.value)
+                }
+              />
+
+              {authError && (
+                <p className="auth-error">{authError}</p>
+              )}
+
+              <button type="submit" className="auth-submit">
+                {authMode === 'login'
+                  ? 'Login'
+                  : 'Create Account'}
+              </button>
+            </form>
+
+            <p className="demo-note">
+              Prototype authentication — connect a secure backend
+              before using real accounts.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // -------------------------
+  // MAIN APP
+  // -------------------------
+
   return (
     <div className="app">
       <header className="navbar">
@@ -198,14 +461,14 @@ function App() {
 
         <button
           className="logout-btn"
-          onClick={() => alert('Logged out')}
+          onClick={handleLogout}
         >
           Log Out
         </button>
       </header>
 
       <main className="main-content">
-        <h2>Welcome back 👋</h2>
+        <h2>Welcome back, {profile.name} 👋</h2>
 
         <p>Your Dashboard</p>
 
@@ -276,7 +539,9 @@ function App() {
                     onClick={() => completeTask(task)}
                     disabled={completed}
                   >
-                    {completed ? 'Completed ✓' : 'Complete Task'}
+                    {completed
+                      ? 'Completed ✓'
+                      : 'Complete Task'}
                   </button>
                 </div>
               )
@@ -302,7 +567,9 @@ function App() {
                   type="text"
                   placeholder="Enter bank name"
                   value={bankName}
-                  onChange={(e) => setBankName(e.target.value)}
+                  onChange={(e) =>
+                    setBankName(e.target.value)
+                  }
                 />
 
                 <label>Account Name</label>
@@ -311,7 +578,9 @@ function App() {
                   type="text"
                   placeholder="Enter account name"
                   value={accountName}
-                  onChange={(e) => setAccountName(e.target.value)}
+                  onChange={(e) =>
+                    setAccountName(e.target.value)
+                  }
                 />
 
                 <label>Account Number</label>
@@ -323,7 +592,9 @@ function App() {
                   placeholder="10-digit account number"
                   value={accountNumber}
                   onChange={(e) =>
-                    setAccountNumber(e.target.value.replace(/\D/g, ''))
+                    setAccountNumber(
+                      e.target.value.replace(/\D/g, '')
+                    )
                   }
                 />
 
@@ -334,7 +605,9 @@ function App() {
                   min="100"
                   placeholder="Minimum ₦100"
                   value={withdrawAmount}
-                  onChange={(e) => setWithdrawAmount(e.target.value)}
+                  onChange={(e) =>
+                    setWithdrawAmount(e.target.value)
+                  }
                 />
 
                 <button type="submit">
@@ -359,14 +632,18 @@ function App() {
                   className="withdrawal-card"
                   key={withdrawal.id}
                 >
-                  <h3>₦{withdrawal.amount.toFixed(2)}</h3>
+                  <h3>
+                    ₦{withdrawal.amount.toFixed(2)}
+                  </h3>
 
                   <p>
-                    <strong>Bank:</strong> {withdrawal.bankName}
+                    <strong>Bank:</strong>{' '}
+                    {withdrawal.bankName}
                   </p>
 
                   <p>
-                    <strong>Account:</strong> {withdrawal.accountName}
+                    <strong>Account:</strong>{' '}
+                    {withdrawal.accountName}
                   </p>
 
                   <p>
@@ -375,7 +652,8 @@ function App() {
                   </p>
 
                   <p>
-                    <strong>Date:</strong> {withdrawal.date}
+                    <strong>Date:</strong>{' '}
+                    {withdrawal.date}
                   </p>
 
                   <span className="pending-status">
@@ -420,13 +698,17 @@ function App() {
 
               <strong>{referrals}</strong>
 
-              <p>People who joined using your referral.</p>
+              <p>
+                People who joined using your referral.
+              </p>
             </div>
 
             <div className="balance-card">
               <h3>Referral Earnings</h3>
 
-              <strong>₦{referralBalance.toFixed(2)}</strong>
+              <strong>
+                ₦{referralBalance.toFixed(2)}
+              </strong>
 
               <p>Earned from successful referrals.</p>
             </div>
@@ -435,7 +717,8 @@ function App() {
               <h3>Demo Testing</h3>
 
               <p>
-                Use this button only to test the referral reward system.
+                Use this button only to test the referral
+                reward system.
               </p>
 
               <button onClick={simulateReferral}>
@@ -468,7 +751,10 @@ function App() {
                     type="text"
                     value={profile.name}
                     onChange={(e) =>
-                      updateProfile('name', e.target.value)
+                      updateProfile(
+                        'name',
+                        e.target.value
+                      )
                     }
                   />
 
@@ -478,7 +764,10 @@ function App() {
                     type="email"
                     value={profile.email}
                     onChange={(e) =>
-                      updateProfile('email', e.target.value)
+                      updateProfile(
+                        'email',
+                        e.target.value
+                      )
                     }
                   />
 
@@ -489,7 +778,10 @@ function App() {
                     placeholder="Enter phone number"
                     value={profile.phone}
                     onChange={(e) =>
-                      updateProfile('phone', e.target.value)
+                      updateProfile(
+                        'phone',
+                        e.target.value
+                      )
                     }
                   />
 
@@ -500,11 +792,13 @@ function App() {
               ) : (
                 <>
                   <p>
-                    <strong>Full Name:</strong> {profile.name}
+                    <strong>Full Name:</strong>{' '}
+                    {profile.name}
                   </p>
 
                   <p>
-                    <strong>Email:</strong> {profile.email}
+                    <strong>Email:</strong>{' '}
+                    {profile.email}
                   </p>
 
                   <p>
@@ -520,7 +814,11 @@ function App() {
                       .toUpperCase() || 'USER'}
                   </p>
 
-                  <button onClick={() => setEditingProfile(true)}>
+                  <button
+                    onClick={() =>
+                      setEditingProfile(true)
+                    }
+                  >
                     Edit Profile
                   </button>
                 </>
