@@ -1,654 +1,228 @@
-import { useEffect, useState } from 'react'
-import { supabase } from './supabase'
+import { useState } from 'react'
 import './App.css'
 
 const ADMIN_EMAIL = 'admin@taskflow.ng'
 
 function App() {
-  const [session, setSession] = useState(null)
-  const [profile, setProfile] = useState(null)
-  const [tasks, setTasks] = useState([])
-  const [submissions, setSubmissions] = useState([])
-  const [withdrawals, setWithdrawals] = useState([])
-
-  const [activeTab, setActiveTab] = useState('Dashboard')
-  const [loading, setLoading] = useState(true)
-  const [message, setMessage] = useState('')
-  const [error, setError] = useState('')
+  const [user, setUser] = useState(() => {
+    const saved = localStorage.getItem('taskflow_user')
+    return saved ? JSON.parse(saved) : null
+  })
 
   const [authMode, setAuthMode] = useState('login')
   const [authForm, setAuthForm] = useState({
     name: '',
     email: '',
     password: '',
-    phone: '',
+  })
+  const [authError, setAuthError] = useState('')
+  const [activeTab, setActiveTab] = useState('Dashboard')
+
+  const [balance] = useState(() => {
+    const saved = localStorage.getItem('taskflow_balance')
+    return saved ? Number(saved) : 0
   })
 
-  const [selectedTask, setSelectedTask] = useState(null)
-  const [proof, setProof] = useState('')
-
-  const [withdrawSource, setWithdrawSource] = useState('task')
-  const [withdrawAmount, setWithdrawAmount] = useState('')
-  const [bankName, setBankName] = useState('')
-  const [accountName, setAccountName] = useState('')
-  const [accountNumber, setAccountNumber] = useState('')
-
-  const [referralCode, setReferralCode] = useState('')
-  const [referrals, setReferrals] = useState([])
-
-  const [newTaskTitle, setNewTaskTitle] = useState('')
-  const [newTaskDescription, setNewTaskDescription] = useState('')
-  const [newTaskReward, setNewTaskReward] = useState('')
-
-  const user = session?.user || null
-  const isAdmin =
-    user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase()
-
-  /*
-   * =========================
-   * INITIAL AUTH
-   * =========================
-   */
-
-  useEffect(() => {
-    let mounted = true
-
-    async function loadSession() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-
-      if (!mounted) return
-
-      setSession(session)
-      setLoading(false)
-    }
-
-    loadSession()
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(
-      (_event, newSession) => {
-        setSession(newSession)
-      }
+  const [referralBalance] = useState(() => {
+    const saved = localStorage.getItem(
+      'taskflow_referral_balance'
     )
+    return saved ? Number(saved) : 0
+  })
 
-    return () => {
-      mounted = false
-      subscription.unsubscribe()
-    }
-  }, [])
+  const [referrals] = useState(() => {
+    const saved = localStorage.getItem('taskflow_referrals')
+    return saved ? Number(saved) : 0
+  })
 
-  /*
-   * =========================
-   * LOAD USER DATA
-   * =========================
-   */
+  const [completedTasks] = useState(() => {
+    const saved = localStorage.getItem(
+      'taskflow_completed_tasks'
+    )
+    return saved ? JSON.parse(saved) : []
+  })
 
-  useEffect(() => {
-    if (!user) {
-      setProfile(null)
-      setTasks([])
-      setSubmissions([])
-      setWithdrawals([])
-      return
-    }
+  const [tasks] = useState(() => {
+    const saved = localStorage.getItem('taskflow_tasks')
 
-    loadUserData()
-  }, [user])
+    return saved
+      ? JSON.parse(saved)
+      : [
+          {
+            id: 1,
+            title: 'Daily Check-in',
+            description:
+              'Complete your daily check-in and submit proof.',
+            reward: 50,
+          },
+          {
+            id: 2,
+            title: 'App Review',
+            description:
+              'Review an app and submit your feedback.',
+            reward: 100,
+          },
+          {
+            id: 3,
+            title: 'Social Task',
+            description:
+              'Complete a simple social media task.',
+            reward: 150,
+          },
+        ]
+  })
 
-  async function loadUserData() {
-    setLoading(true)
-    setError('')
+  const [profile] = useState(() => {
+    const saved = localStorage.getItem('taskflow_profile')
 
-    try {
-      const [
-        profileResult,
-        tasksResult,
-        submissionsResult,
-        withdrawalsResult,
-      ] = await Promise.all([
-        supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single(),
+    return saved
+      ? JSON.parse(saved)
+      : {
+          name: user?.name || 'TaskFlow User',
+          email: user?.email || 'user@example.com',
+          phone: '',
+        }
+  })
 
-        supabase
-          .from('tasks')
-          .select('*')
-          .eq('is_active', true)
-          .order('created_at', {
-            ascending: false,
-          }),
+  const totalBalance = balance + referralBalance
 
-        supabase
-          .from('task_submissions')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', {
-            ascending: false,
-          }),
+  const isAdmin =
+    user?.email?.toLowerCase() === ADMIN_EMAIL
 
-        supabase
-          .from('withdrawals')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', {
-            ascending: false,
-          }),
-      ])
+  const referralCode = 'TASKFLOW2026'
 
-      if (profileResult.error) {
-        throw profileResult.error
-      }
+  const referralLink =
+    `${window.location.origin}?ref=${referralCode}`
 
-      if (tasksResult.error) {
-        throw tasksResult.error
-      }
+  // =========================
+  // AUTH
+  // =========================
 
-      if (submissionsResult.error) {
-        throw submissionsResult.error
-      }
+  const handleAuthChange = (field, value) => {
+    setAuthForm((previous) => ({
+      ...previous,
+      [field]: value,
+    }))
 
-      if (withdrawalsResult.error) {
-        throw withdrawalsResult.error
-      }
-
-      setProfile(profileResult.data)
-      setTasks(tasksResult.data || [])
-      setSubmissions(submissionsResult.data || [])
-      setWithdrawals(withdrawalsResult.data || [])
-
-      setReferralCode(
-        profileResult.data?.referral_code || ''
-      )
-    } catch (err) {
-      console.error(err)
-      setError(
-        err.message ||
-          'Unable to load your TaskFlow account.'
-      )
-    } finally {
-      setLoading(false)
-    }
+    setAuthError('')
   }
 
-  /*
-   * =========================
-   * AUTH
-   * =========================
-   */
-
-  async function handleAuth(event) {
+  const handleAuth = (event) => {
     event.preventDefault()
 
-    setError('')
-    setMessage('')
-
-    const email = authForm.email.trim()
+    const email = authForm.email.trim().toLowerCase()
     const password = authForm.password.trim()
 
     if (!email || !password) {
-      setError(
+      setAuthError(
         'Please enter your email and password.'
       )
       return
     }
 
     if (authMode === 'signup') {
-      if (!authForm.name.trim()) {
-        setError('Please enter your full name.')
+      const name = authForm.name.trim()
+
+      if (!name) {
+        setAuthError('Please enter your full name.')
         return
       }
 
       if (password.length < 6) {
-        setError(
+        setAuthError(
           'Password must be at least 6 characters.'
         )
         return
       }
 
-      const { data, error } =
-        await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              full_name: authForm.name.trim(),
-              phone: authForm.phone.trim(),
-            },
-          },
-        })
-
-      if (error) {
-        setError(error.message)
-        return
-      }
-
-      if (data.session) {
-        setMessage(
-          'Account created successfully.'
-        )
-      } else {
-        setMessage(
-          'Account created. Check your email if confirmation is required.'
-        )
-      }
-
-      setAuthForm({
-        name: '',
-        email: '',
-        password: '',
-        phone: '',
-      })
-
-      return
-    }
-
-    const { error } =
-      await supabase.auth.signInWithPassword({
+      const newUser = {
+        name,
         email,
-        password,
-      })
+      }
 
-    if (error) {
-      setError(error.message)
+      localStorage.setItem(
+        'taskflow_user',
+        JSON.stringify(newUser)
+      )
+
+      localStorage.setItem(
+        'taskflow_profile',
+        JSON.stringify({
+          name,
+          email,
+          phone: '',
+        })
+      )
+
+      setUser(newUser)
+
+      setAuthError('')
       return
     }
 
-    setMessage('Login successful.')
+    const savedUser =
+      localStorage.getItem('taskflow_user')
+
+    if (!savedUser) {
+      setAuthError(
+        'No account found. Please create an account first.'
+      )
+      return
+    }
+
+    const existingUser = JSON.parse(savedUser)
+
+    if (existingUser.email !== email) {
+      setAuthError(
+        'Email address does not match the saved account.'
+      )
+      return
+    }
+
+    setUser(existingUser)
+    setAuthError('')
   }
 
-  async function handleLogout() {
-    await supabase.auth.signOut()
-
-    setSession(null)
-    setProfile(null)
+  const handleLogout = () => {
+    localStorage.removeItem('taskflow_user')
+    setUser(null)
     setActiveTab('Dashboard')
   }
 
-  /*
-   * =========================
-   * TASKS
-   * =========================
-   */
+  // =========================
+  // NAVIGATION
+  // =========================
 
-  function hasSubmitted(taskId) {
-    return submissions.some(
-      (submission) =>
-        submission.task_id === taskId
-    )
+  const navigate = (tab) => {
+    setActiveTab(tab)
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth',
+    })
   }
 
-  function getSubmission(taskId) {
-    return submissions.find(
-      (submission) =>
-        submission.task_id === taskId
-    )
-  }
-
-  function openTask(task) {
-    setSelectedTask(task)
-    setProof('')
-    setError('')
-    setMessage('')
-  }
-
-  function closeTask() {
-    setSelectedTask(null)
-    setProof('')
-  }
-
-  async function submitTaskProof(event) {
-    event.preventDefault()
-
-    if (!selectedTask) return
-
-    setError('')
-    setMessage('')
-
-    if (!proof.trim()) {
-      setError(
-        'Please enter your proof before submitting.'
-      )
-      return
-    }
-
-    if (hasSubmitted(selectedTask.id)) {
-      setError(
-        'You have already submitted this task.'
-      )
-      return
-    }
-
-    const { error } =
-      await supabase
-        .from('task_submissions')
-        .insert({
-          user_id: user.id,
-          task_id: selectedTask.id,
-          proof: proof.trim(),
-          status: 'pending',
-          reward: selectedTask.reward,
-        })
-
-    if (error) {
-      setError(error.message)
-      return
-    }
-
-    setMessage(
-      'Your proof has been submitted and is pending review.'
-    )
-
-    closeTask()
-
-    await loadUserData()
-  }
-
-  /*
-   * =========================
-   * WITHDRAWAL
-   * =========================
-   */
-
-  const taskBalance =
-    Number(profile?.task_balance || 0)
-
-  const affiliateBalance =
-    Number(profile?.affiliate_balance || 0)
-
-  const totalBalance =
-    taskBalance + affiliateBalance
-
-  const selectedBalance =
-    withdrawSource === 'task'
-      ? taskBalance
-      : affiliateBalance
-
-  async function handleWithdraw(event) {
-    event.preventDefault()
-
-    setError('')
-    setMessage('')
-
-    const amount = Number(withdrawAmount)
-
-    if (
-      !bankName.trim() ||
-      !accountName.trim() ||
-      !accountNumber.trim() ||
-      !amount
-    ) {
-      setError(
-        'Please fill in all withdrawal details.'
-      )
-      return
-    }
-
-    if (accountNumber.length !== 10) {
-      setError(
-        'Account number must contain 10 digits.'
-      )
-      return
-    }
-
-    if (amount < 100) {
-      setError(
-        'Minimum withdrawal amount is ₦100.'
-      )
-      return
-    }
-
-    if (amount > selectedBalance) {
-      setError(
-        'Insufficient balance in the selected wallet.'
-      )
-      return
-    }
-
-    const { error } =
-      await supabase
-        .from('withdrawals')
-        .insert({
-          user_id: user.id,
-          amount,
-          bank_name: bankName.trim(),
-          account_name: accountName.trim(),
-          account_number: accountNumber.trim(),
-          status: 'pending',
-        })
-
-    if (error) {
-      setError(error.message)
-      return
-    }
-
-    setMessage(
-      'Withdrawal request submitted successfully.'
-    )
-
-    setWithdrawAmount('')
-    setBankName('')
-    setAccountName('')
-    setAccountNumber('')
-
-    await loadUserData()
-    setActiveTab('History')
-  }
-
-  /*
-   * =========================
-   * PROFILE
-   * =========================
-   */
-
-  async function saveProfile(event) {
-    event.preventDefault()
-
-    setError('')
-    setMessage('')
-
-    const { error } =
-      await supabase
-        .from('profiles')
-        .update({
-          full_name: profile.full_name,
-          phone: profile.phone,
-        })
-        .eq('id', user.id)
-
-    if (error) {
-      setError(error.message)
-      return
-    }
-
-    setMessage(
-      'Profile updated successfully.'
-    )
-
-    await loadUserData()
-  }
-
-  /*
-   * =========================
-   * REFERRAL
-   * =========================
-   */
-
-  const referralLink =
-    `${window.location.origin}?ref=${referralCode}`
-
-  async function copyReferralLink() {
-    try {
-      await navigator.clipboard.writeText(
-        referralLink
-      )
-
-      setMessage(
-        'Referral link copied.'
-      )
-    } catch {
-      setError(
-        'Unable to copy the referral link.'
-      )
-    }
-  }
-
-  /*
-   * =========================
-   * ADMIN
-   * =========================
-   */
-
-  async function addTask(event) {
-    event.preventDefault()
-
-    setError('')
-    setMessage('')
-
-    const reward = Number(newTaskReward)
-
-    if (
-      !newTaskTitle.trim() ||
-      !newTaskDescription.trim() ||
-      !reward
-    ) {
-      setError(
-        'Please complete all task fields.'
-      )
-      return
-    }
-
-    const { error } =
-      await supabase
-        .from('tasks')
-        .insert({
-          title: newTaskTitle.trim(),
-          description:
-            newTaskDescription.trim(),
-          reward,
-          is_active: true,
-          task_type: 'general',
-          verification_method: 'text',
-        })
-
-    if (error) {
-      setError(error.message)
-      return
-    }
-
-    setNewTaskTitle('')
-    setNewTaskDescription('')
-    setNewTaskReward('')
-
-    setMessage(
-      'Task created successfully.'
-    )
-
-    await loadUserData()
-  }
-
-  async function updateSubmissionStatus(
-    submission,
-    status
-  ) {
-    setError('')
-    setMessage('')
-
-    const { error } =
-      await supabase
-        .from('task_submissions')
-        .update({
-          status,
-        })
-        .eq('id', submission.id)
-
-    if (error) {
-      setError(error.message)
-      return
-    }
-
-    setMessage(
-      `Submission marked as ${status}.`
-    )
-
-    await loadUserData()
-  }
-
-  async function updateWithdrawalStatus(
-    withdrawal,
-    status
-  ) {
-    setError('')
-    setMessage('')
-
-    const { error } =
-      await supabase
-        .from('withdrawals')
-        .update({
-          status,
-        })
-        .eq('id', withdrawal.id)
-
-    if (error) {
-      setError(error.message)
-      return
-    }
-
-    setMessage(
-      `Withdrawal marked as ${status}.`
-    )
-
-    await loadUserData()
-  }
-
-  /*
-   * =========================
-   * LOADING
-   * =========================
-   */
-
-  if (loading && !session) {
-    return (
-      <div className="app loading-page">
-        <div className="loading-content">
-          <div className="tf-logo">
-            TF
-          </div>
-
-          <h2>TaskFlow NG</h2>
-
-          <p>Loading...</p>
-        </div>
-      </div>
-    )
-  }
-
-  /*
-   * =========================
-   * LOGIN
-   * =========================
-   */
+  // =========================
+  // LOGIN SCREEN
+  // =========================
 
   if (!user) {
     return (
       <div className="auth-page">
         <div className="auth-card">
           <div className="auth-brand">
-            <div className="tf-logo">
-              TF
-            </div>
+            <div className="tf-logo">TF</div>
 
             <div>
               <h1>TaskFlow NG</h1>
-              <p>Tasks • Rewards • Earnings</p>
+              <p>Tasks • Rewards • Growth</p>
             </div>
           </div>
 
           <div className="auth-heading">
+            <span className="section-label">
+              Welcome
+            </span>
+
             <h2>
               {authMode === 'login'
                 ? 'Welcome back'
@@ -657,8 +231,8 @@ function App() {
 
             <p>
               {authMode === 'login'
-                ? 'Log in to continue to your TaskFlow account.'
-                : 'Create an account to start completing tasks.'}
+                ? 'Log in to continue to your TaskFlow dashboard.'
+                : 'Create an account and start completing tasks.'}
             </p>
           </div>
 
@@ -672,8 +246,7 @@ function App() {
               }
               onClick={() => {
                 setAuthMode('login')
-                setError('')
-                setMessage('')
+                setAuthError('')
               }}
             >
               Login
@@ -688,11 +261,10 @@ function App() {
               }
               onClick={() => {
                 setAuthMode('signup')
-                setError('')
-                setMessage('')
+                setAuthError('')
               }}
             >
-              Sign Up
+              Create Account
             </button>
           </div>
 
@@ -705,25 +277,11 @@ function App() {
                   type="text"
                   placeholder="Enter your full name"
                   value={authForm.name}
-                  onChange={(e) =>
-                    setAuthForm({
-                      ...authForm,
-                      name: e.target.value,
-                    })
-                  }
-                />
-
-                <label>Phone Number</label>
-
-                <input
-                  type="tel"
-                  placeholder="Enter your phone number"
-                  value={authForm.phone}
-                  onChange={(e) =>
-                    setAuthForm({
-                      ...authForm,
-                      phone: e.target.value,
-                    })
+                  onChange={(event) =>
+                    handleAuthChange(
+                      'name',
+                      event.target.value
+                    )
                   }
                 />
               </>
@@ -735,11 +293,11 @@ function App() {
               type="email"
               placeholder="you@example.com"
               value={authForm.email}
-              onChange={(e) =>
-                setAuthForm({
-                  ...authForm,
-                  email: e.target.value,
-                })
+              onChange={(event) =>
+                handleAuthChange(
+                  'email',
+                  event.target.value
+                )
               }
             />
 
@@ -747,25 +305,19 @@ function App() {
 
             <input
               type="password"
-              placeholder="Minimum 6 characters"
+              placeholder="Enter your password"
               value={authForm.password}
-              onChange={(e) =>
-                setAuthForm({
-                  ...authForm,
-                  password: e.target.value,
-                })
+              onChange={(event) =>
+                handleAuthChange(
+                  'password',
+                  event.target.value
+                )
               }
             />
 
-            {error && (
+            {authError && (
               <div className="form-error">
-                {error}
-              </div>
-            )}
-
-            {message && (
-              <div className="form-message">
-                {message}
+                {authError}
               </div>
             )}
 
@@ -774,7 +326,7 @@ function App() {
               className="primary-button"
             >
               {authMode === 'login'
-                ? 'Login to TaskFlow'
+                ? 'Log In'
                 : 'Create Account'}
             </button>
           </form>
@@ -783,331 +335,9 @@ function App() {
     )
   }
 
-  /*
-   * =========================
-   * ADMIN
-   * =========================
-   */
-
-  if (
-    isAdmin &&
-    activeTab === 'Admin'
-  ) {
-    return (
-      <div className="app">
-        <header className="topbar">
-          <div className="topbar-left">
-            <div className="tf-logo small">
-              TF
-            </div>
-
-            <div>
-              <h1>TaskFlow NG</h1>
-              <span>Administration</span>
-            </div>
-          </div>
-
-          <button
-            className="outline-button"
-            onClick={() =>
-              setActiveTab('Dashboard')
-            }
-          >
-            Back to Dashboard
-          </button>
-        </header>
-
-        <main className="dashboard-container">
-          <div className="dashboard-heading">
-            <div>
-              <span className="section-label">
-                ADMINISTRATION
-              </span>
-
-              <h2>Control Center</h2>
-
-              <p>
-                Manage tasks, submissions and
-                withdrawal requests.
-              </p>
-            </div>
-          </div>
-
-          {error && (
-            <div className="form-error">
-              {error}
-            </div>
-          )}
-
-          {message && (
-            <div className="form-message">
-              {message}
-            </div>
-          )}
-
-          <section className="wallet-grid">
-            <div className="wallet-card">
-              <div className="wallet-card-header">
-                <div className="wallet-symbol task">
-                  ₦
-                </div>
-
-                Total User Task Balance
-              </div>
-
-              <h3>
-                ₦{taskBalance.toFixed(2)}
-              </h3>
-            </div>
-
-            <div className="wallet-card">
-              <div className="wallet-card-header">
-                <div className="wallet-symbol affiliate">
-                  ₦
-                </div>
-
-                Total Affiliate Balance
-              </div>
-
-              <h3>
-                ₦{affiliateBalance.toFixed(2)}
-              </h3>
-            </div>
-          </section>
-
-          <section className="dashboard-section">
-            <div className="section-title-row">
-              <h3>Create Task</h3>
-            </div>
-
-            <div className="profile-card">
-              <form onSubmit={addTask}>
-                <label>Task Title</label>
-
-                <input
-                  value={newTaskTitle}
-                  onChange={(e) =>
-                    setNewTaskTitle(
-                      e.target.value
-                    )
-                  }
-                  placeholder="Example: Daily Check-in"
-                />
-
-                <label>Description</label>
-
-                <input
-                  value={newTaskDescription}
-                  onChange={(e) =>
-                    setNewTaskDescription(
-                      e.target.value
-                    )
-                  }
-                  placeholder="Task instructions"
-                />
-
-                <label>Reward</label>
-
-                <input
-                  type="number"
-                  min="1"
-                  value={newTaskReward}
-                  onChange={(e) =>
-                    setNewTaskReward(
-                      e.target.value
-                    )
-                  }
-                  placeholder="50"
-                />
-
-                <button
-                  type="submit"
-                  className="primary-button"
-                >
-                  Create Task
-                </button>
-              </form>
-            </div>
-          </section>
-
-          <section className="dashboard-section">
-            <div className="section-title-row">
-              <h3>Task Submissions</h3>
-            </div>
-
-            {submissions.length === 0 ? (
-              <div className="empty-card">
-                <strong>
-                  No submissions yet.
-                </strong>
-
-                <span>
-                  User task submissions will appear
-                  here.
-                </span>
-              </div>
-            ) : (
-              submissions.map(
-                (submission) => (
-                  <div
-                    className="wallet-card"
-                    key={submission.id}
-                    style={{
-                      marginBottom: '12px',
-                    }}
-                  >
-                    <strong>
-                      Submission
-                    </strong>
-
-                    <p>
-                      Proof: {submission.proof}
-                    </p>
-
-                    <p>
-                      Reward: ₦
-                      {Number(
-                        submission.reward || 0
-                      ).toFixed(2)}
-                    </p>
-
-                    <p>
-                      Status:{' '}
-                      {submission.status}
-                    </p>
-
-                    {submission.status ===
-                      'pending' && (
-                      <div
-                        style={{
-                          display: 'flex',
-                          gap: '10px',
-                          marginTop: '15px',
-                        }}
-                      >
-                        <button
-                          className="outline-button"
-                          onClick={() =>
-                            updateSubmissionStatus(
-                              submission,
-                              'approved'
-                            )
-                          }
-                        >
-                          Approve
-                        </button>
-
-                        <button
-                          className="danger-button"
-                          onClick={() =>
-                            updateSubmissionStatus(
-                              submission,
-                              'rejected'
-                            )
-                          }
-                        >
-                          Reject
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )
-              )
-            )}
-          </section>
-
-          <section className="dashboard-section">
-            <div className="section-title-row">
-              <h3>Withdrawal Requests</h3>
-            </div>
-
-            {withdrawals.length === 0 ? (
-              <div className="empty-card">
-                <strong>
-                  No withdrawal requests.
-                </strong>
-              </div>
-            ) : (
-              withdrawals.map(
-                (withdrawal) => (
-                  <div
-                    className="wallet-card"
-                    key={withdrawal.id}
-                    style={{
-                      marginBottom: '12px',
-                    }}
-                  >
-                    <h3>
-                      ₦
-                      {Number(
-                        withdrawal.amount
-                      ).toFixed(2)}
-                    </h3>
-
-                    <p>
-                      Bank:{' '}
-                      {withdrawal.bank_name}
-                    </p>
-
-                    <p>
-                      Account:{' '}
-                      {withdrawal.account_name}
-                    </p>
-
-                    <p>
-                      Status:{' '}
-                      {withdrawal.status}
-                    </p>
-
-                    {withdrawal.status ===
-                      'pending' && (
-                      <div
-                        style={{
-                          display: 'flex',
-                          gap: '10px',
-                          marginTop: '15px',
-                        }}
-                      >
-                        <button
-                          className="outline-button"
-                          onClick={() =>
-                            updateWithdrawalStatus(
-                              withdrawal,
-                              'approved'
-                            )
-                          }
-                        >
-                          Approve
-                        </button>
-
-                        <button
-                          className="danger-button"
-                          onClick={() =>
-                            updateWithdrawalStatus(
-                              withdrawal,
-                              'rejected'
-                            )
-                          }
-                        >
-                          Reject
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )
-              )
-            )}
-          </section>
-        </main>
-      </div>
-    )
-  }
-
-  /*
-   * =========================
-   * MAIN APP
-   * =========================
-   */
+  // =========================
+  // MAIN APP
+  // =========================
 
   return (
     <div className="app">
@@ -1119,103 +349,71 @@ function App() {
 
           <div>
             <h1>TaskFlow NG</h1>
-            <span>
-              Your rewards workspace
-            </span>
+            <span>Rewards dashboard</span>
           </div>
         </div>
 
         <div className="topbar-right">
           <button
             className="profile-button"
-            onClick={() =>
-              setActiveTab('Profile')
-            }
+            onClick={() => navigate('Profile')}
           >
             <div className="avatar">
-              {(profile?.full_name ||
-                'U')
+              {profile.name
                 .charAt(0)
                 .toUpperCase()}
             </div>
 
             <div className="profile-button-text">
-              <strong>
-                {profile?.full_name ||
-                  'User'}
-              </strong>
-
-              <span>
-                {user.email}
-              </span>
+              <strong>{profile.name}</strong>
+              <span>My Profile</span>
             </div>
           </button>
 
           <button
-            className="icon-button"
-            onClick={handleLogout}
-            title="Log out"
+            className="menu-button"
+            onClick={() => navigate('Profile')}
           >
-            ↪
+            ☰
           </button>
         </div>
       </header>
 
       <main className="dashboard-container">
-        {error && (
-          <div
-            className="form-error"
-            style={{
-              marginBottom: '15px',
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        {message && (
-          <div
-            className="form-message"
-            style={{
-              marginBottom: '15px',
-            }}
-          >
-            {message}
-          </div>
-        )}
+        {/* =========================
+            DASHBOARD
+        ========================= */}
 
         {activeTab === 'Dashboard' && (
           <>
             <div className="dashboard-heading">
               <div>
                 <span className="section-label">
-                  ACCOUNT OVERVIEW
+                  Dashboard
                 </span>
 
                 <h2>
-                  Good to see you,{' '}
-                  {profile?.full_name?.split(
-                    ' '
-                  )[0] || 'there'}.
+                  Welcome back,{' '}
+                  {profile.name.split(' ')[0]} 👋
                 </h2>
 
                 <p>
                   Here's an overview of your
-                  TaskFlow account.
+                  TaskFlow activity.
                 </p>
               </div>
 
               <button
                 className="outline-button"
-                onClick={() =>
-                  setActiveTab('Tasks')
-                }
+                onClick={() => navigate('Tasks')}
               >
-                View Available Tasks
+                View Tasks
               </button>
             </div>
 
-            <section className="balance-overview">
+            {/* TOTAL BALANCE */}
+
+            <div className="balance-overview">
               <div className="balance-overview-content">
                 <span>
                   TOTAL AVAILABLE BALANCE
@@ -1234,85 +432,86 @@ function App() {
               <div className="balance-mark">
                 ₦
               </div>
-            </section>
+            </div>
 
-            <section className="wallet-grid">
+            {/* TWO WALLETS */}
+
+            <div className="wallet-grid">
               <div className="wallet-card">
                 <div className="wallet-card-header">
                   <div className="wallet-symbol task">
-                    T
+                    ₦
                   </div>
 
                   Task Balance
                 </div>
 
                 <h3>
-                  ₦{taskBalance.toFixed(2)}
+                  ₦{balance.toFixed(2)}
                 </h3>
 
                 <p>
-                  Earnings from approved tasks
+                  Earnings from completed
+                  tasks
                 </p>
               </div>
 
               <div className="wallet-card">
                 <div className="wallet-card-header">
                   <div className="wallet-symbol affiliate">
-                    A
+                    ↗
                   </div>
 
                   Affiliate Balance
                 </div>
 
                 <h3>
-                  ₦
-                  {affiliateBalance.toFixed(
-                    2
-                  )}
+                  ₦{referralBalance.toFixed(2)}
                 </h3>
 
                 <p>
                   Earnings from referrals
                 </p>
               </div>
-            </section>
+            </div>
+
+            {/* QUICK ACTIONS */}
 
             <section className="dashboard-section">
               <div className="section-title-row">
-                <h3>
-                  What would you like to do?
-                </h3>
+                <h3>Quick Actions</h3>
               </div>
 
               <div className="action-grid">
                 <button
                   className="action-card"
                   onClick={() =>
-                    setActiveTab('Tasks')
+                    navigate('Tasks')
                   }
                 >
                   <div className="action-icon">
-                    T
+                    ✓
                   </div>
 
                   <div>
                     <strong>
-                      Complete a task
+                      Complete Tasks
                     </strong>
 
                     <span>
-                      Earn money by completing
-                      available tasks.
+                      Earn rewards by
+                      completing available
+                      tasks.
                     </span>
                   </div>
 
-                  <b>→</b>
+                  <b>›</b>
                 </button>
 
                 <button
                   className="action-card"
                   onClick={() =>
-                    setActiveTab('Withdraw')
+                    navigate('Withdraw')
                   }
                 >
                   <div className="action-icon">
@@ -1321,123 +520,148 @@ function App() {
 
                   <div>
                     <strong>
-                      Withdraw funds
+                      Withdraw
                     </strong>
 
                     <span>
-                      Request a withdrawal from
-                      either wallet.
+                      Withdraw from either
+                      wallet.
                     </span>
                   </div>
 
-                  <b>→</b>
+                  <b>›</b>
                 </button>
 
                 <button
                   className="action-card"
                   onClick={() =>
-                    setActiveTab('Referrals')
+                    navigate('Referrals')
                   }
                 >
                   <div className="action-icon">
-                    +
+                    ↗
                   </div>
 
                   <div>
                     <strong>
-                      Refer & earn
+                      Refer & Earn
                     </strong>
 
                     <span>
-                      Invite others and earn
+                      Invite friends and earn
                       affiliate rewards.
                     </span>
                   </div>
 
-                  <b>→</b>
+                  <b>›</b>
                 </button>
               </div>
             </section>
 
+            {/* RECENT TASKS */}
+
             <section className="dashboard-section">
               <div className="section-title-row">
-                <h3>
-                  Available right now
-                </h3>
+                <h3>Available Tasks</h3>
 
                 <button
                   className="text-button"
                   onClick={() =>
-                    setActiveTab('Tasks')
+                    navigate('Tasks')
                   }
                 >
                   View all
                 </button>
               </div>
 
-              {tasks.length === 0 ? (
-                <div className="empty-card">
-                  <strong>
-                    No tasks available
-                  </strong>
+              <div className="mini-task-list">
+                {tasks
+                  .slice(0, 3)
+                  .map((task) => (
+                    <button
+                      className="mini-task"
+                      key={task.id}
+                      onClick={() =>
+                        navigate('Tasks')
+                      }
+                    >
+                      <div className="mini-task-icon">
+                        ✓
+                      </div>
 
-                  <span>
-                    Check back later for new
-                    opportunities.
-                  </span>
-                </div>
-              ) : (
-                <div className="mini-task-list">
-                  {tasks
-                    .slice(0, 3)
-                    .map((task) => (
-                      <button
-                        className="mini-task"
-                        key={task.id}
-                        onClick={() =>
-                          openTask(task)
-                        }
-                      >
-                        <div className="mini-task-icon">
-                          T
-                        </div>
-
-                        <div className="mini-task-info">
-                          <strong>
-                            {task.title}
-                          </strong>
-
-                          <span>
-                            {task.description}
-                          </span>
-                        </div>
-
+                      <div className="mini-task-info">
                         <strong>
-                          +₦
-                          {Number(
-                            task.reward
-                          ).toFixed(0)}
+                          {task.title}
                         </strong>
-                      </button>
-                    ))}
+
+                        <span>
+                          {task.description}
+                        </span>
+                      </div>
+
+                      <strong>
+                        ₦{task.reward}
+                      </strong>
+                    </button>
+                  ))}
+              </div>
+            </section>
+
+            {/* ACTIVITY */}
+
+            <section className="dashboard-section">
+              <div className="section-title-row">
+                <h3>Account Overview</h3>
+              </div>
+
+              <div className="wallet-grid">
+                <div className="wallet-card">
+                  <div className="wallet-card-header">
+                    Completed Tasks
+                  </div>
+
+                  <h3>
+                    {completedTasks.length}
+                  </h3>
+
+                  <p>
+                    Tasks completed by you
+                  </p>
                 </div>
-              )}
+
+                <div className="wallet-card">
+                  <div className="wallet-card-header">
+                    Total Referrals
+                  </div>
+
+                  <h3>{referrals}</h3>
+
+                  <p>
+                    People referred to
+                    TaskFlow
+                  </p>
+                </div>
+              </div>
             </section>
           </>
         )}
+
+        {/* =========================
+            TASKS
+        ========================= */}
 
         {activeTab === 'Tasks' && (
           <>
             <div className="page-heading">
               <span className="section-label">
-                EARNINGS
+                Earn
               </span>
 
               <h2>Available Tasks</h2>
 
               <p>
-                Complete a task and submit proof
-                for review.
+                Complete tasks and submit proof
+                for verification.
               </p>
             </div>
 
@@ -1448,14 +672,17 @@ function App() {
                 </strong>
 
                 <span>
-                  New tasks will appear here.
+                  Check back later for new
+                  opportunities.
                 </span>
               </div>
             ) : (
               <div className="task-list">
                 {tasks.map((task, index) => {
-                  const submission =
-                    getSubmission(task.id)
+                  const completed =
+                    completedTasks.includes(
+                      task.id
+                    )
 
                   return (
                     <div
@@ -1467,8 +694,11 @@ function App() {
                           {index + 1}
                         </div>
 
-                        {task.task_type ||
-                          'Task'}
+                        <span>
+                          {completed
+                            ? 'Completed'
+                            : 'Available'}
+                        </span>
                       </div>
 
                       <h3>{task.title}</h3>
@@ -1484,39 +714,22 @@ function App() {
                           </small>
 
                           <strong>
-                            ₦
-                            {Number(
-                              task.reward
-                            ).toFixed(2)}
+                            ₦{task.reward}
                           </strong>
                         </div>
 
-                        {submission ? (
-                          <span
-                            style={{
-                              fontSize:
-                                '12px',
-                              fontWeight: 700,
-                            }}
-                          >
-                            {submission.status ===
-                            'pending'
-                              ? 'Pending Review'
-                              : submission.status ===
-                                'approved'
-                              ? 'Approved ✓'
-                              : 'Rejected'}
-                          </span>
-                        ) : (
-                          <button
-                            className="outline-button"
-                            onClick={() =>
-                              openTask(task)
-                            }
-                          >
-                            Open Task
-                          </button>
-                        )}
+                        <button
+                          className={
+                            completed
+                              ? 'outline-button'
+                              : 'primary-button small-button'
+                          }
+                          disabled={completed}
+                        >
+                          {completed
+                            ? 'Completed ✓'
+                            : 'Submit Proof'}
+                        </button>
                       </div>
                     </div>
                   )
@@ -1526,30 +739,29 @@ function App() {
           </>
         )}
 
+        {/* =========================
+            WITHDRAW
+        ========================= */}
+
         {activeTab === 'Withdraw' && (
           <>
             <div className="page-heading">
               <span className="section-label">
-                PAYOUT
+                Wallet
               </span>
 
               <h2>Withdraw Funds</h2>
 
               <p>
-                Choose which balance you want to
-                withdraw from.
+                Choose which balance you want
+                to withdraw from.
               </p>
             </div>
 
             <div className="withdraw-choice-grid">
-              <button
-                className="withdraw-choice"
-                onClick={() =>
-                  setWithdrawSource('task')
-                }
-              >
+              <button className="withdraw-choice">
                 <div className="wallet-symbol task">
-                  T
+                  ₦
                 </div>
 
                 <div>
@@ -1558,30 +770,16 @@ function App() {
                   </span>
 
                   <strong>
-                    ₦
-                    {taskBalance.toFixed(
-                      2
-                    )}
+                    ₦{balance.toFixed(2)}
                   </strong>
                 </div>
 
-                <b>
-                  {withdrawSource === 'task'
-                    ? '✓'
-                    : '→'}
-                </b>
+                <b>›</b>
               </button>
 
-              <button
-                className="withdraw-choice"
-                onClick={() =>
-                  setWithdrawSource(
-                    'affiliate'
-                  )
-                }
-              >
+              <button className="withdraw-choice">
                 <div className="wallet-symbol affiliate">
-                  A
+                  ↗
                 </div>
 
                 <div>
@@ -1590,210 +788,34 @@ function App() {
                   </span>
 
                   <strong>
-                    ₦
-                    {affiliateBalance.toFixed(
+                    ₦{referralBalance.toFixed(
                       2
                     )}
                   </strong>
                 </div>
 
-                <b>
-                  {withdrawSource ===
-                  'affiliate'
-                    ? '✓'
-                    : '→'}
-                </b>
+                <b>›</b>
               </button>
             </div>
-
-            <section
-              className="dashboard-section"
-              style={{
-                maxWidth: '650px',
-              }}
-            >
-              <div className="profile-card">
-                <div className="wallet-card-header">
-                  Withdrawing from
-                </div>
-
-                <h2
-                  style={{
-                    marginTop: '10px',
-                  }}
-                >
-                  {withdrawSource ===
-                  'task'
-                    ? 'Task Balance'
-                    : 'Affiliate Balance'}
-                </h2>
-
-                <h3>
-                  ₦
-                  {selectedBalance.toFixed(
-                    2
-                  )}
-                </h3>
-
-                <form
-                  onSubmit={handleWithdraw}
-                >
-                  <label>
-                    Bank Name
-                  </label>
-
-                  <input
-                    value={bankName}
-                    onChange={(e) =>
-                      setBankName(
-                        e.target.value
-                      )
-                    }
-                    placeholder="Example: Opay"
-                  />
-
-                  <label>
-                    Account Name
-                  </label>
-
-                  <input
-                    value={accountName}
-                    onChange={(e) =>
-                      setAccountName(
-                        e.target.value
-                      )
-                    }
-                    placeholder="Account holder name"
-                  />
-
-                  <label>
-                    Account Number
-                  </label>
-
-                  <input
-                    inputMode="numeric"
-                    maxLength="10"
-                    value={accountNumber}
-                    onChange={(e) =>
-                      setAccountNumber(
-                        e.target.value.replace(
-                          /\D/g,
-                          ''
-                        )
-                      )
-                    }
-                    placeholder="10-digit account number"
-                  />
-
-                  <label>
-                    Amount
-                  </label>
-
-                  <input
-                    type="number"
-                    min="100"
-                    value={withdrawAmount}
-                    onChange={(e) =>
-                      setWithdrawAmount(
-                        e.target.value
-                      )
-                    }
-                    placeholder="Minimum ₦100"
-                  />
-
-                  <button
-                    type="submit"
-                    className="primary-button"
-                  >
-                    Submit Withdrawal
-                  </button>
-                </form>
-              </div>
-            </section>
           </>
         )}
 
-        {activeTab === 'History' && (
-          <>
-            <div className="page-heading">
-              <span className="section-label">
-                ACTIVITY
-              </span>
-
-              <h2>Withdrawal History</h2>
-
-              <p>
-                Track your withdrawal requests.
-              </p>
-            </div>
-
-            {withdrawals.length === 0 ? (
-              <div className="empty-card large">
-                <strong>
-                  No withdrawals yet
-                </strong>
-
-                <span>
-                  Your withdrawal history will
-                  appear here.
-                </span>
-              </div>
-            ) : (
-              <div>
-                {withdrawals.map(
-                  (withdrawal) => (
-                    <div
-                      className="wallet-card"
-                      key={withdrawal.id}
-                      style={{
-                        marginBottom: '12px',
-                      }}
-                    >
-                      <div className="wallet-card-header">
-                        Withdrawal
-                      </div>
-
-                      <h3>
-                        ₦
-                        {Number(
-                          withdrawal.amount
-                        ).toFixed(2)}
-                      </h3>
-
-                      <p>
-                        {withdrawal.bank_name}{' '}
-                        •{' '}
-                        {withdrawal.account_name}
-                      </p>
-
-                      <p>
-                        Status:{' '}
-                        <strong>
-                          {
-                            withdrawal.status
-                          }
-                        </strong>
-                      </p>
-                    </div>
-                  )
-                )}
-              </div>
-            )}
-          </>
-        )}
+        {/* =========================
+            REFERRALS
+        ========================= */}
 
         {activeTab === 'Referrals' && (
           <>
             <div className="page-heading">
               <span className="section-label">
-                AFFILIATE PROGRAM
+                Affiliate
               </span>
 
               <h2>Refer & Earn</h2>
 
               <p>
-                Invite people and earn from
-                successful referrals.
+                Invite people to TaskFlow and
+                earn affiliate rewards.
               </p>
             </div>
 
@@ -1802,14 +824,11 @@ function App() {
                 YOUR REFERRAL CODE
               </span>
 
-              <h2>
-                {referralCode ||
-                  'Generating...'}
-              </h2>
+              <h2>{referralCode}</h2>
 
               <p>
-                Share your referral link with
-                people you know.
+                Your referral link is ready.
+                Share it with people you know.
               </p>
 
               <input
@@ -1819,8 +838,10 @@ function App() {
 
               <button
                 className="primary-button"
-                onClick={
-                  copyReferralLink
+                onClick={() =>
+                  navigator.clipboard.writeText(
+                    referralLink
+                  )
                 }
               >
                 Copy Referral Link
@@ -1834,9 +855,7 @@ function App() {
                     Total Referrals
                   </div>
 
-                  <h3>
-                    {referrals.length}
-                  </h3>
+                  <h3>{referrals}</h3>
 
                   <p>
                     Successful referrals
@@ -1845,18 +864,18 @@ function App() {
 
                 <div className="wallet-card">
                   <div className="wallet-card-header">
-                    Affiliate Balance
+                    Affiliate Earnings
                   </div>
 
                   <h3>
-                    ₦
-                    {affiliateBalance.toFixed(
+                    ₦{referralBalance.toFixed(
                       2
                     )}
                   </h3>
 
                   <p>
-                    Referral earnings
+                    Available affiliate
+                    balance
                   </p>
                 </div>
               </div>
@@ -1864,82 +883,138 @@ function App() {
           </>
         )}
 
+        {/* =========================
+            PROFILE
+        ========================= */}
+
         {activeTab === 'Profile' && (
           <>
             <div className="page-heading">
               <span className="section-label">
-                ACCOUNT
+                Account
               </span>
 
               <h2>My Profile</h2>
 
               <p>
-                Manage your TaskFlow account
-                information.
+                Manage your TaskFlow account.
               </p>
             </div>
 
             <div className="profile-card">
               <div className="large-avatar">
-                {(profile?.full_name ||
-                  'U')
+                {profile.name
                   .charAt(0)
                   .toUpperCase()}
               </div>
 
-              <h2>
-                {profile?.full_name ||
-                  'User'}
-              </h2>
+              <h2>{profile.name}</h2>
 
-              <p>{user.email}</p>
+              <p>{profile.email}</p>
 
-              <form
-                onSubmit={saveProfile}
+              <div className="profile-details">
+                <div>
+                  <span>
+                    Full Name
+                  </span>
+
+                  <strong>
+                    {profile.name}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>Email</span>
+
+                  <strong>
+                    {profile.email}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>Phone</span>
+
+                  <strong>
+                    {profile.phone ||
+                      'Not added'}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>Account Type</span>
+
+                  <strong>
+                    {isAdmin
+                      ? 'Administrator'
+                      : 'User'}
+                  </strong>
+                </div>
+              </div>
+
+              <button
+                className="danger-button"
+                onClick={handleLogout}
               >
-                <label>
-                  Full Name
-                </label>
+                Log Out
+              </button>
+            </div>
+          </>
+        )}
 
-                <input
-                  value={
-                    profile?.full_name ||
-                    ''
-                  }
-                  onChange={(e) =>
-                    setProfile({
-                      ...profile,
-                      full_name:
-                        e.target.value,
-                    })
-                  }
-                />
+        {/* =========================
+            ADMIN
+        ========================= */}
 
-                <label>
-                  Phone Number
-                </label>
+        {activeTab === 'Admin' && isAdmin && (
+          <>
+            <div className="page-heading">
+              <span className="section-label">
+                Administration
+              </span>
 
-                <input
-                  value={
-                    profile?.phone || ''
-                  }
-                  onChange={(e) =>
-                    setProfile({
-                      ...profile,
-                      phone:
-                        e.target.value,
-                    })
-                  }
-                  placeholder="Enter phone number"
-                />
+              <h2>Admin Dashboard</h2>
 
-                <button
-                  type="submit"
-                  className="primary-button"
-                >
-                  Save Profile
-                </button>
-              </form>
+              <p>
+                Manage TaskFlow NG.
+              </p>
+            </div>
+
+            <div className="wallet-grid">
+              <div className="wallet-card">
+                <div className="wallet-card-header">
+                  Users
+                </div>
+
+                <h3>—</h3>
+
+                <p>
+                  Connected to Supabase
+                </p>
+              </div>
+
+              <div className="wallet-card">
+                <div className="wallet-card-header">
+                  Tasks
+                </div>
+
+                <h3>{tasks.length}</h3>
+
+                <p>
+                  Available platform tasks
+                </p>
+              </div>
+            </div>
+
+            <div className="empty-card">
+              <strong>
+                Admin controls coming next
+              </strong>
+
+              <span>
+                Task verification and
+                withdrawal management will
+                be connected to Supabase.
+              </span>
             </div>
           </>
         )}
@@ -1957,7 +1032,7 @@ function App() {
               : ''
           }
           onClick={() =>
-            setActiveTab('Dashboard')
+            navigate('Dashboard')
           }
         >
           <span>⌂</span>
@@ -1970,9 +1045,7 @@ function App() {
               ? 'active'
               : ''
           }
-          onClick={() =>
-            setActiveTab('Tasks')
-          }
+          onClick={() => navigate('Tasks')}
         >
           <span>✓</span>
           Tasks
@@ -1985,11 +1058,11 @@ function App() {
               : ''
           }
           onClick={() =>
-            setActiveTab('Withdraw')
+            navigate('Withdraw')
           }
         >
           <span>₦</span>
-          Withdraw
+          Wallet
         </button>
 
         <button
@@ -1999,135 +1072,13 @@ function App() {
               : ''
           }
           onClick={() =>
-            setActiveTab('Profile')
+            navigate('Profile')
           }
         >
           <span>●</span>
           Profile
         </button>
       </nav>
-
-      {/* =========================
-          TASK PROOF MODAL
-      ========================= */}
-
-      {selectedTask && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background:
-              'rgba(15, 23, 42, 0.55)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '20px',
-            zIndex: 100,
-          }}
-        >
-          <div
-            className="profile-card"
-            style={{
-              width: '100%',
-              maxWidth: '560px',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-            }}
-          >
-            <div className="section-title-row">
-              <div>
-                <span className="section-label">
-                  TASK
-                </span>
-
-                <h3>
-                  {selectedTask.title}
-                </h3>
-              </div>
-
-              <button
-                className="icon-button"
-                onClick={closeTask}
-              >
-                ×
-              </button>
-            </div>
-
-            <p>
-              {selectedTask.description}
-            </p>
-
-            <div className="wallet-card">
-              <span className="section-label">
-                REWARD
-              </span>
-
-              <h3>
-                ₦
-                {Number(
-                  selectedTask.reward
-                ).toFixed(2)}
-              </h3>
-            </div>
-
-            <form
-              onSubmit={submitTaskProof}
-            >
-              <label>
-                Proof of Completion
-              </label>
-
-              <textarea
-                value={proof}
-                onChange={(e) =>
-                  setProof(e.target.value)
-                }
-                placeholder="Enter the proof requested for this task..."
-                rows="6"
-                style={{
-                  width: '100%',
-                  border:
-                    '1px solid #dfe3ea',
-                  borderRadius: '11px',
-                  padding: '13px',
-                  resize: 'vertical',
-                }}
-              />
-
-              <p
-                style={{
-                  color: '#8992a2',
-                  fontSize: '12px',
-                  lineHeight: 1.5,
-                }}
-              >
-                Your submission will be reviewed
-                before the reward is added to
-                your balance.
-              </p>
-
-              <button
-                type="submit"
-                className="primary-button"
-              >
-                Submit Proof
-              </button>
-
-              <button
-                type="button"
-                className="outline-button"
-                style={{
-                  width: '100%',
-                  marginTop: '10px',
-                }}
-                onClick={closeTask}
-              >
-                Cancel
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
