@@ -1,14 +1,16 @@
 import { useState } from 'react'
 import './App.css'
 
+const ADMIN_EMAIL = 'admin@taskflow.ng'
+
 function App() {
-  // -------------------------
-  // AUTHENTICATION
-  // -------------------------
+  // =========================
+  // AUTH
+  // =========================
 
   const [user, setUser] = useState(() => {
-    const savedUser = localStorage.getItem('taskflow_user')
-    return savedUser ? JSON.parse(savedUser) : null
+    const saved = localStorage.getItem('taskflow_user')
+    return saved ? JSON.parse(saved) : null
   })
 
   const [authMode, setAuthMode] = useState('login')
@@ -21,15 +23,50 @@ function App() {
 
   const [authError, setAuthError] = useState('')
 
-  // -------------------------
-  // APP STATE
-  // -------------------------
+  // =========================
+  // NAVIGATION
+  // =========================
 
   const [activeTab, setActiveTab] = useState('Dashboard')
+
+  // =========================
+  // BALANCE
+  // =========================
 
   const [balance, setBalance] = useState(() => {
     const saved = localStorage.getItem('taskflow_balance')
     return saved ? Number(saved) : 0
+  })
+
+  // =========================
+  // TASKS
+  // =========================
+
+  const [tasks, setTasks] = useState(() => {
+    const saved = localStorage.getItem('taskflow_tasks')
+
+    return saved
+      ? JSON.parse(saved)
+      : [
+          {
+            id: 1,
+            title: 'Daily Check-in',
+            description: 'Complete your daily check-in.',
+            reward: 50,
+          },
+          {
+            id: 2,
+            title: 'App Review',
+            description: 'Review an app and share your feedback.',
+            reward: 100,
+          },
+          {
+            id: 3,
+            title: 'Social Task',
+            description: 'Complete a simple social media task.',
+            reward: 150,
+          },
+        ]
   })
 
   const [completedTasks, setCompletedTasks] = useState(() => {
@@ -37,10 +74,18 @@ function App() {
     return saved ? JSON.parse(saved) : []
   })
 
+  // =========================
+  // WITHDRAWALS
+  // =========================
+
   const [withdrawals, setWithdrawals] = useState(() => {
     const saved = localStorage.getItem('taskflow_withdrawals')
     return saved ? JSON.parse(saved) : []
   })
+
+  // =========================
+  // REFERRALS
+  // =========================
 
   const [referrals, setReferrals] = useState(() => {
     const saved = localStorage.getItem('taskflow_referrals')
@@ -48,9 +93,16 @@ function App() {
   })
 
   const [referralBalance, setReferralBalance] = useState(() => {
-    const saved = localStorage.getItem('taskflow_referral_balance')
+    const saved = localStorage.getItem(
+      'taskflow_referral_balance'
+    )
+
     return saved ? Number(saved) : 0
   })
+
+  // =========================
+  // PROFILE
+  // =========================
 
   const [profile, setProfile] = useState(() => {
     const saved = localStorage.getItem('taskflow_profile')
@@ -66,42 +118,34 @@ function App() {
 
   const [editingProfile, setEditingProfile] = useState(false)
 
+  // =========================
+  // WITHDRAW FORM
+  // =========================
+
   const [bankName, setBankName] = useState('')
   const [accountName, setAccountName] = useState('')
   const [accountNumber, setAccountNumber] = useState('')
   const [withdrawAmount, setWithdrawAmount] = useState('')
 
+  // =========================
+  // ADMIN FORM
+  // =========================
+
+  const [newTaskTitle, setNewTaskTitle] = useState('')
+  const [newTaskDescription, setNewTaskDescription] =
+    useState('')
+  const [newTaskReward, setNewTaskReward] = useState('')
+
   const referralCode = 'TASKFLOW2026'
-  const referralLink = `${window.location.origin}?ref=${referralCode}`
+  const referralLink =
+    `${window.location.origin}?ref=${referralCode}`
 
-  // -------------------------
-  // TASKS
-  // -------------------------
+  const isAdmin =
+    user && user.email.toLowerCase() === ADMIN_EMAIL
 
-  const tasks = [
-    {
-      id: 1,
-      title: 'Daily Check-in',
-      description: 'Complete your daily check-in.',
-      reward: 50,
-    },
-    {
-      id: 2,
-      title: 'App Review',
-      description: 'Review an app and share your feedback.',
-      reward: 100,
-    },
-    {
-      id: 3,
-      title: 'Social Task',
-      description: 'Complete a simple social media task.',
-      reward: 150,
-    },
-  ]
-
-  // -------------------------
+  // =========================
   // AUTH FUNCTIONS
-  // -------------------------
+  // =========================
 
   const handleAuthChange = (field, value) => {
     setAuthForm({
@@ -119,7 +163,9 @@ function App() {
     const password = authForm.password.trim()
 
     if (!email || !password) {
-      setAuthError('Please enter your email and password.')
+      setAuthError(
+        'Please enter your email and password.'
+      )
       return
     }
 
@@ -132,7 +178,9 @@ function App() {
       }
 
       if (password.length < 6) {
-        setAuthError('Password must be at least 6 characters.')
+        setAuthError(
+          'Password must be at least 6 characters.'
+        )
         return
       }
 
@@ -156,6 +204,7 @@ function App() {
       )
 
       setUser(newUser)
+
       setProfile({
         name,
         email,
@@ -168,21 +217,25 @@ function App() {
         password: '',
       })
 
-      setAuthError('')
       return
     }
 
-    const savedUser = localStorage.getItem('taskflow_user')
+    const savedUser =
+      localStorage.getItem('taskflow_user')
 
     if (!savedUser) {
-      setAuthError('No account found. Please create an account first.')
+      setAuthError(
+        'No account found. Please create an account first.'
+      )
       return
     }
 
     const existingUser = JSON.parse(savedUser)
 
     if (existingUser.email !== email) {
-      setAuthError('Email address does not match the saved account.')
+      setAuthError(
+        'Email address does not match the saved account.'
+      )
       return
     }
 
@@ -197,9 +250,9 @@ function App() {
     setActiveTab('Dashboard')
   }
 
-  // -------------------------
+  // =========================
   // TASK FUNCTIONS
-  // -------------------------
+  // =========================
 
   const completeTask = (task) => {
     if (completedTasks.includes(task.id)) {
@@ -207,38 +260,54 @@ function App() {
       return
     }
 
-    const newBalance = balance + task.reward
-    const newCompletedTasks = [...completedTasks, task.id]
+    const newBalance = balance + Number(task.reward)
+
+    const newCompletedTasks = [
+      ...completedTasks,
+      task.id,
+    ]
 
     setBalance(newBalance)
     setCompletedTasks(newCompletedTasks)
 
-    localStorage.setItem('taskflow_balance', newBalance)
+    localStorage.setItem(
+      'taskflow_balance',
+      newBalance
+    )
 
     localStorage.setItem(
       'taskflow_completed_tasks',
       JSON.stringify(newCompletedTasks)
     )
 
-    alert(`Task completed! You earned ₦${task.reward}.`)
+    alert(
+      `Task completed! You earned ₦${task.reward}.`
+    )
   }
 
-  // -------------------------
+  // =========================
   // WITHDRAWAL
-  // -------------------------
+  // =========================
 
   const handleWithdraw = (event) => {
     event.preventDefault()
 
     const amount = Number(withdrawAmount)
 
-    if (!bankName || !accountName || !accountNumber || !amount) {
+    if (
+      !bankName ||
+      !accountName ||
+      !accountNumber ||
+      !amount
+    ) {
       alert('Please fill in all withdrawal details.')
       return
     }
 
     if (accountNumber.length !== 10) {
-      alert('Please enter a valid 10-digit account number.')
+      alert(
+        'Please enter a valid 10-digit account number.'
+      )
       return
     }
 
@@ -264,12 +333,18 @@ function App() {
       date: new Date().toLocaleString(),
     }
 
-    const newWithdrawals = [newWithdrawal, ...withdrawals]
+    const newWithdrawals = [
+      newWithdrawal,
+      ...withdrawals,
+    ]
 
     setBalance(newBalance)
     setWithdrawals(newWithdrawals)
 
-    localStorage.setItem('taskflow_balance', newBalance)
+    localStorage.setItem(
+      'taskflow_balance',
+      newBalance
+    )
 
     localStorage.setItem(
       'taskflow_withdrawals',
@@ -281,21 +356,30 @@ function App() {
     setAccountNumber('')
     setWithdrawAmount('')
 
-    alert(`Withdrawal request submitted for ₦${amount.toFixed(2)}.`)
+    alert(
+      `Withdrawal request submitted for ₦${amount.toFixed(
+        2
+      )}.`
+    )
 
     setActiveTab('History')
   }
 
-  // -------------------------
+  // =========================
   // REFERRALS
-  // -------------------------
+  // =========================
 
   const copyReferralLink = async () => {
     try {
-      await navigator.clipboard.writeText(referralLink)
+      await navigator.clipboard.writeText(
+        referralLink
+      )
+
       alert('Referral link copied!')
     } catch {
-      alert('Copy failed. Please copy the link manually.')
+      alert(
+        'Copy failed. Please copy the link manually.'
+      )
     }
   }
 
@@ -303,7 +387,8 @@ function App() {
     const reward = 50
 
     const newReferrals = referrals + 1
-    const newReferralBalance = referralBalance + reward
+    const newReferralBalance =
+      referralBalance + reward
 
     setReferrals(newReferrals)
     setReferralBalance(newReferralBalance)
@@ -318,12 +403,14 @@ function App() {
       newReferralBalance
     )
 
-    alert(`New referral added! You earned ₦${reward}.`)
+    alert(
+      `New referral added! You earned ₦${reward}.`
+    )
   }
 
-  // -------------------------
+  // =========================
   // PROFILE
-  // -------------------------
+  // =========================
 
   const updateProfile = (field, value) => {
     setProfile({
@@ -354,9 +441,90 @@ function App() {
     alert('Profile saved successfully!')
   }
 
-  // -------------------------
-  // LOGIN / SIGNUP SCREEN
-  // -------------------------
+  // =========================
+  // ADMIN FUNCTIONS
+  // =========================
+
+  const addTask = (event) => {
+    event.preventDefault()
+
+    const reward = Number(newTaskReward)
+
+    if (
+      !newTaskTitle.trim() ||
+      !newTaskDescription.trim() ||
+      !reward
+    ) {
+      alert('Please complete all task fields.')
+      return
+    }
+
+    if (reward <= 0) {
+      alert('Reward must be greater than ₦0.')
+      return
+    }
+
+    const newTask = {
+      id: Date.now(),
+      title: newTaskTitle.trim(),
+      description: newTaskDescription.trim(),
+      reward,
+    }
+
+    const updatedTasks = [...tasks, newTask]
+
+    setTasks(updatedTasks)
+
+    localStorage.setItem(
+      'taskflow_tasks',
+      JSON.stringify(updatedTasks)
+    )
+
+    setNewTaskTitle('')
+    setNewTaskDescription('')
+    setNewTaskReward('')
+
+    alert('New task added successfully!')
+  }
+
+  const deleteTask = (taskId) => {
+    const updatedTasks = tasks.filter(
+      (task) => task.id !== taskId
+    )
+
+    setTasks(updatedTasks)
+
+    localStorage.setItem(
+      'taskflow_tasks',
+      JSON.stringify(updatedTasks)
+    )
+  }
+
+  const updateWithdrawalStatus = (
+    withdrawalId,
+    status
+  ) => {
+    const updatedWithdrawals = withdrawals.map(
+      (withdrawal) =>
+        withdrawal.id === withdrawalId
+          ? {
+              ...withdrawal,
+              status,
+            }
+          : withdrawal
+    )
+
+    setWithdrawals(updatedWithdrawals)
+
+    localStorage.setItem(
+      'taskflow_withdrawals',
+      JSON.stringify(updatedWithdrawals)
+    )
+  }
+
+  // =========================
+  // LOGIN SCREEN
+  // =========================
 
   if (!user) {
     return (
@@ -401,7 +569,10 @@ function App() {
                     placeholder="Enter your full name"
                     value={authForm.name}
                     onChange={(e) =>
-                      handleAuthChange('name', e.target.value)
+                      handleAuthChange(
+                        'name',
+                        e.target.value
+                      )
                     }
                   />
                 </>
@@ -414,7 +585,10 @@ function App() {
                 placeholder="Enter your email"
                 value={authForm.email}
                 onChange={(e) =>
-                  handleAuthChange('email', e.target.value)
+                  handleAuthChange(
+                    'email',
+                    e.target.value
+                  )
                 }
               />
 
@@ -425,15 +599,23 @@ function App() {
                 placeholder="Enter your password"
                 value={authForm.password}
                 onChange={(e) =>
-                  handleAuthChange('password', e.target.value)
+                  handleAuthChange(
+                    'password',
+                    e.target.value
+                  )
                 }
               />
 
               {authError && (
-                <p className="auth-error">{authError}</p>
+                <p className="auth-error">
+                  {authError}
+                </p>
               )}
 
-              <button type="submit" className="auth-submit">
+              <button
+                type="submit"
+                className="auth-submit"
+              >
                 {authMode === 'login'
                   ? 'Login'
                   : 'Create Account'}
@@ -441,8 +623,9 @@ function App() {
             </form>
 
             <p className="demo-note">
-              Prototype authentication — connect a secure backend
-              before using real accounts.
+              Prototype authentication only. Connect
+              secure backend authentication before using
+              real accounts or money.
             </p>
           </div>
         </div>
@@ -450,9 +633,221 @@ function App() {
     )
   }
 
-  // -------------------------
-  // MAIN APP
-  // -------------------------
+  // =========================
+  // ADMIN DASHBOARD
+  // =========================
+
+  if (isAdmin && activeTab === 'Admin') {
+    const pendingWithdrawals =
+      withdrawals.filter(
+        (withdrawal) =>
+          withdrawal.status === 'Pending'
+      ).length
+
+    const totalRewards = completedTasks.length
+
+    return (
+      <div className="app">
+        <header className="navbar">
+          <h1>TaskFlow NG Admin</h1>
+
+          <button
+            className="logout-btn"
+            onClick={handleLogout}
+          >
+            Log Out
+          </button>
+        </header>
+
+        <main className="main-content">
+          <h2>Admin Dashboard 🛠️</h2>
+
+          <p>Manage TaskFlow NG.</p>
+
+          <button
+            onClick={() =>
+              setActiveTab('Dashboard')
+            }
+          >
+            Back to Dashboard
+          </button>
+
+          <div className="admin-grid">
+            <div className="balance-card">
+              <h3>Available User Balance</h3>
+
+              <strong>
+                ₦{balance.toFixed(2)}
+              </strong>
+            </div>
+
+            <div className="balance-card">
+              <h3>Tasks Completed</h3>
+
+              <strong>{totalRewards}</strong>
+            </div>
+
+            <div className="balance-card">
+              <h3>Total Referrals</h3>
+
+              <strong>{referrals}</strong>
+            </div>
+
+            <div className="balance-card">
+              <h3>Pending Withdrawals</h3>
+
+              <strong>
+                {pendingWithdrawals}
+              </strong>
+            </div>
+          </div>
+
+          <div className="admin-card">
+            <h2>Create New Task</h2>
+
+            <form onSubmit={addTask}>
+              <label>Task Title</label>
+
+              <input
+                type="text"
+                placeholder="Example: Watch a video"
+                value={newTaskTitle}
+                onChange={(e) =>
+                  setNewTaskTitle(e.target.value)
+                }
+              />
+
+              <label>Description</label>
+
+              <input
+                type="text"
+                placeholder="Describe the task"
+                value={newTaskDescription}
+                onChange={(e) =>
+                  setNewTaskDescription(
+                    e.target.value
+                  )
+                }
+              />
+
+              <label>Reward</label>
+
+              <input
+                type="number"
+                min="1"
+                placeholder="Reward in Naira"
+                value={newTaskReward}
+                onChange={(e) =>
+                  setNewTaskReward(e.target.value)
+                }
+              />
+
+              <button type="submit">
+                Add Task
+              </button>
+            </form>
+          </div>
+
+          <div className="admin-card">
+            <h2>Manage Tasks</h2>
+
+            {tasks.map((task) => (
+              <div
+                className="admin-task"
+                key={task.id}
+              >
+                <div>
+                  <h3>{task.title}</h3>
+
+                  <p>{task.description}</p>
+
+                  <strong>
+                    ₦{task.reward}
+                  </strong>
+                </div>
+
+                <button
+                  onClick={() =>
+                    deleteTask(task.id)
+                  }
+                >
+                  Delete
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="admin-card">
+            <h2>Withdrawal Requests</h2>
+
+            {withdrawals.length === 0 ? (
+              <p>No withdrawal requests.</p>
+            ) : (
+              withdrawals.map((withdrawal) => (
+                <div
+                  className="admin-withdrawal"
+                  key={withdrawal.id}
+                >
+                  <h3>
+                    ₦
+                    {withdrawal.amount.toFixed(
+                      2
+                    )}
+                  </h3>
+
+                  <p>
+                    <strong>Bank:</strong>{' '}
+                    {withdrawal.bankName}
+                  </p>
+
+                  <p>
+                    <strong>Account:</strong>{' '}
+                    {withdrawal.accountName}
+                  </p>
+
+                  <p>
+                    <strong>Status:</strong>{' '}
+                    {withdrawal.status}
+                  </p>
+
+                  {withdrawal.status ===
+                    'Pending' && (
+                    <div className="admin-actions">
+                      <button
+                        onClick={() =>
+                          updateWithdrawalStatus(
+                            withdrawal.id,
+                            'Approved'
+                          )
+                        }
+                      >
+                        Approve
+                      </button>
+
+                      <button
+                        onClick={() =>
+                          updateWithdrawalStatus(
+                            withdrawal.id,
+                            'Rejected'
+                          )
+                        }
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </main>
+      </div>
+    )
+  }
+
+  // =========================
+  // MAIN USER APP
+  // =========================
 
   return (
     <div className="app">
@@ -468,36 +863,74 @@ function App() {
       </header>
 
       <main className="main-content">
-        <h2>Welcome back, {profile.name} 👋</h2>
+        <h2>
+          Welcome back, {profile.name} 👋
+        </h2>
 
         <p>Your Dashboard</p>
 
-        <p>Track your earnings and rewards in one place.</p>
+        <p>
+          Track your earnings and rewards in one place.
+        </p>
 
         <nav className="tabs">
-          <button onClick={() => setActiveTab('Dashboard')}>
+          <button
+            onClick={() =>
+              setActiveTab('Dashboard')
+            }
+          >
             Dashboard
           </button>
 
-          <button onClick={() => setActiveTab('Tasks')}>
+          <button
+            onClick={() =>
+              setActiveTab('Tasks')
+            }
+          >
             Tasks
           </button>
 
-          <button onClick={() => setActiveTab('Withdraw')}>
+          <button
+            onClick={() =>
+              setActiveTab('Withdraw')
+            }
+          >
             Withdraw
           </button>
 
-          <button onClick={() => setActiveTab('History')}>
+          <button
+            onClick={() =>
+              setActiveTab('History')
+            }
+          >
             History
           </button>
 
-          <button onClick={() => setActiveTab('Referrals')}>
+          <button
+            onClick={() =>
+              setActiveTab('Referrals')
+            }
+          >
             Referrals
           </button>
 
-          <button onClick={() => setActiveTab('Profile')}>
+          <button
+            onClick={() =>
+              setActiveTab('Profile')
+            }
+          >
             Profile
           </button>
+
+          {isAdmin && (
+            <button
+              onClick={() =>
+                setActiveTab('Admin')
+              }
+            >
+              Admin
+            </button>
+          )}
         </nav>
 
         {activeTab === 'Dashboard' && (
@@ -505,7 +938,9 @@ function App() {
             <div className="balance-card">
               <h3>Task Balance</h3>
 
-              <strong>₦{balance.toFixed(2)}</strong>
+              <strong>
+                ₦{balance.toFixed(2)}
+              </strong>
 
               <p>From completed tasks</p>
             </div>
@@ -513,7 +948,9 @@ function App() {
             <div className="balance-card">
               <h3>Affiliate Balance</h3>
 
-              <strong>₦{referralBalance.toFixed(2)}</strong>
+              <strong>
+                ₦{referralBalance.toFixed(2)}
+              </strong>
 
               <p>From referrals</p>
             </div>
@@ -525,18 +962,26 @@ function App() {
             <h2>Available Tasks</h2>
 
             {tasks.map((task) => {
-              const completed = completedTasks.includes(task.id)
+              const completed =
+                completedTasks.includes(task.id)
 
               return (
-                <div className="task-card" key={task.id}>
+                <div
+                  className="task-card"
+                  key={task.id}
+                >
                   <h3>{task.title}</h3>
 
                   <p>{task.description}</p>
 
-                  <strong>₦{task.reward}</strong>
+                  <strong>
+                    ₦{task.reward}
+                  </strong>
 
                   <button
-                    onClick={() => completeTask(task)}
+                    onClick={() =>
+                      completeTask(task)
+                    }
                     disabled={completed}
                   >
                     {completed
@@ -554,13 +999,17 @@ function App() {
             <div className="balance-card">
               <h3>Available Balance</h3>
 
-              <strong>₦{balance.toFixed(2)}</strong>
+              <strong>
+                ₦{balance.toFixed(2)}
+              </strong>
             </div>
 
             <div className="withdraw-card">
               <h2>Withdraw Funds</h2>
 
-              <form onSubmit={handleWithdraw}>
+              <form
+                onSubmit={handleWithdraw}
+              >
                 <label>Bank Name</label>
 
                 <input
@@ -579,11 +1028,15 @@ function App() {
                   placeholder="Enter account name"
                   value={accountName}
                   onChange={(e) =>
-                    setAccountName(e.target.value)
+                    setAccountName(
+                      e.target.value
+                    )
                   }
                 />
 
-                <label>Account Number</label>
+                <label>
+                  Account Number
+                </label>
 
                 <input
                   type="text"
@@ -593,12 +1046,17 @@ function App() {
                   value={accountNumber}
                   onChange={(e) =>
                     setAccountNumber(
-                      e.target.value.replace(/\D/g, '')
+                      e.target.value.replace(
+                        /\D/g,
+                        ''
+                      )
                     )
                   }
                 />
 
-                <label>Withdrawal Amount</label>
+                <label>
+                  Withdrawal Amount
+                </label>
 
                 <input
                   type="number"
@@ -606,7 +1064,9 @@ function App() {
                   placeholder="Minimum ₦100"
                   value={withdrawAmount}
                   onChange={(e) =>
-                    setWithdrawAmount(e.target.value)
+                    setWithdrawAmount(
+                      e.target.value
+                    )
                   }
                 />
 
@@ -624,43 +1084,60 @@ function App() {
 
             {withdrawals.length === 0 ? (
               <div className="balance-card">
-                <p>No withdrawals yet.</p>
+                <p>
+                  No withdrawals yet.
+                </p>
               </div>
             ) : (
-              withdrawals.map((withdrawal) => (
-                <div
-                  className="withdrawal-card"
-                  key={withdrawal.id}
-                >
-                  <h3>
-                    ₦{withdrawal.amount.toFixed(2)}
-                  </h3>
+              withdrawals.map(
+                (withdrawal) => (
+                  <div
+                    className="withdrawal-card"
+                    key={withdrawal.id}
+                  >
+                    <h3>
+                      ₦
+                      {withdrawal.amount.toFixed(
+                        2
+                      )}
+                    </h3>
 
-                  <p>
-                    <strong>Bank:</strong>{' '}
-                    {withdrawal.bankName}
-                  </p>
+                    <p>
+                      <strong>
+                        Bank:
+                      </strong>{' '}
+                      {withdrawal.bankName}
+                    </p>
 
-                  <p>
-                    <strong>Account:</strong>{' '}
-                    {withdrawal.accountName}
-                  </p>
+                    <p>
+                      <strong>
+                        Account:
+                      </strong>{' '}
+                      {withdrawal.accountName}
+                    </p>
 
-                  <p>
-                    <strong>Account Number:</strong>{' '}
-                    {withdrawal.accountNumber}
-                  </p>
+                    <p>
+                      <strong>
+                        Account Number:
+                      </strong>{' '}
+                      {
+                        withdrawal.accountNumber
+                      }
+                    </p>
 
-                  <p>
-                    <strong>Date:</strong>{' '}
-                    {withdrawal.date}
-                  </p>
+                    <p>
+                      <strong>
+                        Date:
+                      </strong>{' '}
+                      {withdrawal.date}
+                    </p>
 
-                  <span className="pending-status">
-                    {withdrawal.status}
-                  </span>
-                </div>
-              ))
+                    <span className="pending-status">
+                      {withdrawal.status}
+                    </span>
+                  </div>
+                )
+              )
             )}
           </section>
         )}
@@ -671,16 +1148,21 @@ function App() {
               <h2>Refer & Earn</h2>
 
               <p>
-                Invite friends to TaskFlow NG and earn rewards.
+                Invite friends to TaskFlow NG
+                and earn rewards.
               </p>
 
-              <h3>Your Referral Code</h3>
+              <h3>
+                Your Referral Code
+              </h3>
 
               <div className="referral-code">
                 {referralCode}
               </div>
 
-              <h3>Your Referral Link</h3>
+              <h3>
+                Your Referral Link
+              </h3>
 
               <input
                 type="text"
@@ -688,40 +1170,59 @@ function App() {
                 readOnly
               />
 
-              <button onClick={copyReferralLink}>
+              <button
+                onClick={copyReferralLink}
+              >
                 Copy Referral Link
               </button>
             </div>
 
             <div className="balance-card">
-              <h3>Total Referrals</h3>
-
-              <strong>{referrals}</strong>
-
-              <p>
-                People who joined using your referral.
-              </p>
-            </div>
-
-            <div className="balance-card">
-              <h3>Referral Earnings</h3>
+              <h3>
+                Total Referrals
+              </h3>
 
               <strong>
-                ₦{referralBalance.toFixed(2)}
+                {referrals}
               </strong>
 
-              <p>Earned from successful referrals.</p>
+              <p>
+                People who joined using
+                your referral.
+              </p>
             </div>
 
             <div className="balance-card">
-              <h3>Demo Testing</h3>
+              <h3>
+                Referral Earnings
+              </h3>
+
+              <strong>
+                ₦
+                {referralBalance.toFixed(
+                  2
+                )}
+              </strong>
 
               <p>
-                Use this button only to test the referral
-                reward system.
+                Earned from successful
+                referrals.
+              </p>
+            </div>
+
+            <div className="balance-card">
+              <h3>
+                Demo Testing
+              </h3>
+
+              <p>
+                Use this button only to
+                test referrals.
               </p>
 
-              <button onClick={simulateReferral}>
+              <button
+                onClick={simulateReferral}
+              >
                 Simulate Referral +₦50
               </button>
             </div>
@@ -732,12 +1233,18 @@ function App() {
           <section className="profile-section">
             <div className="profile-card">
               <div className="profile-avatar">
-                {profile.name.charAt(0).toUpperCase()}
+                {profile.name
+                  .charAt(0)
+                  .toUpperCase()}
               </div>
 
-              <h2>{profile.name}</h2>
+              <h2>
+                {profile.name}
+              </h2>
 
-              <p>{profile.email}</p>
+              <p>
+                {profile.email}
+              </p>
             </div>
 
             <div className="profile-card">
@@ -745,7 +1252,9 @@ function App() {
 
               {editingProfile ? (
                 <>
-                  <label>Full Name</label>
+                  <label>
+                    Full Name
+                  </label>
 
                   <input
                     type="text"
@@ -758,7 +1267,9 @@ function App() {
                     }
                   />
 
-                  <label>Email</label>
+                  <label>
+                    Email
+                  </label>
 
                   <input
                     type="email"
@@ -771,7 +1282,9 @@ function App() {
                     }
                   />
 
-                  <label>Phone Number</label>
+                  <label>
+                    Phone Number
+                  </label>
 
                   <input
                     type="tel"
@@ -785,38 +1298,56 @@ function App() {
                     }
                   />
 
-                  <button onClick={saveProfile}>
+                  <button
+                    onClick={saveProfile}
+                  >
                     Save Profile
                   </button>
                 </>
               ) : (
                 <>
                   <p>
-                    <strong>Full Name:</strong>{' '}
+                    <strong>
+                      Full Name:
+                    </strong>{' '}
                     {profile.name}
                   </p>
 
                   <p>
-                    <strong>Email:</strong>{' '}
+                    <strong>
+                      Email:
+                    </strong>{' '}
                     {profile.email}
                   </p>
 
                   <p>
-                    <strong>Phone:</strong>{' '}
-                    {profile.phone || 'Not added'}
+                    <strong>
+                      Phone:
+                    </strong>{' '}
+                    {profile.phone ||
+                      'Not added'}
                   </p>
 
                   <p>
-                    <strong>User ID:</strong> TF-
+                    <strong>
+                      User ID:
+                    </strong>{' '}
+                    TF-
                     {profile.name
-                      .replace(/\s/g, '')
+                      .replace(
+                        /\s/g,
+                        ''
+                      )
                       .slice(0, 6)
-                      .toUpperCase() || 'USER'}
+                      .toUpperCase() ||
+                      'USER'}
                   </p>
 
                   <button
                     onClick={() =>
-                      setEditingProfile(true)
+                      setEditingProfile(
+                        true
+                      )
                     }
                   >
                     Edit Profile
