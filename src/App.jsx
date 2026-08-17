@@ -14,6 +14,13 @@ function App() {
     return savedTasks ? JSON.parse(savedTasks) : []
   })
 
+  const [withdrawals, setWithdrawals] = useState(() => {
+    const savedWithdrawals = localStorage.getItem(
+      'taskflow_withdrawals'
+    )
+    return savedWithdrawals ? JSON.parse(savedWithdrawals) : []
+  })
+
   const [bankName, setBankName] = useState('')
   const [accountName, setAccountName] = useState('')
   const [accountNumber, setAccountNumber] = useState('')
@@ -88,17 +95,40 @@ function App() {
 
     const newBalance = balance - amount
 
+    const newWithdrawal = {
+      id: Date.now(),
+      amount: amount,
+      bankName: bankName,
+      accountName: accountName,
+      accountNumber: accountNumber,
+      status: 'Pending',
+      date: new Date().toLocaleString(),
+    }
+
+    const newWithdrawals = [newWithdrawal, ...withdrawals]
+
     setBalance(newBalance)
+    setWithdrawals(newWithdrawals)
 
     localStorage.setItem('taskflow_balance', newBalance)
+
+    localStorage.setItem(
+      'taskflow_withdrawals',
+      JSON.stringify(newWithdrawals)
+    )
+
+    setBankName('')
+    setAccountName('')
+    setAccountNumber('')
+    setWithdrawAmount('')
 
     alert(
       `Withdrawal request submitted for ₦${amount.toFixed(
         2
-      )}. Your request is pending.`
+      )}.`
     )
 
-    setWithdrawAmount('')
+    setActiveTab('History')
   }
 
   return (
@@ -132,6 +162,10 @@ function App() {
 
           <button onClick={() => setActiveTab('Withdraw')}>
             Withdraw
+          </button>
+
+          <button onClick={() => setActiveTab('History')}>
+            History
           </button>
 
           <button onClick={() => setActiveTab('Referrals')}>
@@ -197,8 +231,6 @@ function App() {
             <div className="withdraw-card">
               <h2>Withdraw Funds</h2>
 
-              <p>Enter your bank details below.</p>
-
               <form onSubmit={handleWithdraw}>
                 <label>Bank Name</label>
 
@@ -240,7 +272,9 @@ function App() {
                   min="100"
                   placeholder="Minimum ₦100"
                   value={withdrawAmount}
-                  onChange={(e) => setWithdrawAmount(e.target.value)}
+                  onChange={(e) =>
+                    setWithdrawAmount(e.target.value)
+                  }
                 />
 
                 <button type="submit">
@@ -248,6 +282,51 @@ function App() {
                 </button>
               </form>
             </div>
+          </section>
+        )}
+
+        {activeTab === 'History' && (
+          <section className="history-section">
+            <h2>Withdrawal History</h2>
+
+            {withdrawals.length === 0 ? (
+              <div className="balance-card">
+                <p>No withdrawals yet.</p>
+              </div>
+            ) : (
+              withdrawals.map((withdrawal) => (
+                <div
+                  className="withdrawal-card"
+                  key={withdrawal.id}
+                >
+                  <h3>₦{withdrawal.amount.toFixed(2)}</h3>
+
+                  <p>
+                    <strong>Bank:</strong>{' '}
+                    {withdrawal.bankName}
+                  </p>
+
+                  <p>
+                    <strong>Account:</strong>{' '}
+                    {withdrawal.accountName}
+                  </p>
+
+                  <p>
+                    <strong>Account Number:</strong>{' '}
+                    {withdrawal.accountNumber}
+                  </p>
+
+                  <p>
+                    <strong>Date:</strong>{' '}
+                    {withdrawal.date}
+                  </p>
+
+                  <span className="pending-status">
+                    {withdrawal.status}
+                  </span>
+                </div>
+              ))
+            )}
           </section>
         )}
 
