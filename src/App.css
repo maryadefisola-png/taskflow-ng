@@ -1,139 +1,529 @@
 * {
   box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  background: #f4f7fb;
+  color: #172033;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+/* =========================
+   MAIN APP
+========================= */
 
 .app {
   min-height: 100vh;
-  background: linear-gradient(160deg, #07152e 0%, #0b3b7a 50%, #061124 100%);
-  color: white;
+  background: linear-gradient(
+    135deg,
+    #eef7ff 0%,
+    #f8fbff 45%,
+    #eefaf5 100%
+  );
 }
 
+/* =========================
+   NAVBAR
+========================= */
+
 .navbar {
-  background: #06245c;
-  padding: 20px;
+  width: 100%;
+  min-height: 72px;
+  padding: 15px 6%;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  justify-content: space-between;
+  background: #ffffff;
+  border-bottom: 1px solid #e5eaf1;
+  box-shadow: 0 4px 18px rgba(31, 41, 55, 0.06);
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .navbar h1 {
-  margin: 0;
-  color: white;
+  color: #087f5b;
   font-size: 24px;
+  font-weight: 800;
 }
 
 .logout-btn {
-  background: white;
-  color: #0755d9;
+  background: #172033;
+  color: #ffffff;
   border: none;
-  padding: 10px 16px;
+  padding: 10px 18px;
   border-radius: 10px;
-  font-weight: bold;
+  font-weight: 700;
 }
+
+/* =========================
+   MAIN CONTENT
+========================= */
 
 .main-content {
-  max-width: 1000px;
-  margin: auto;
-  padding: 35px 20px;
+  width: min(1100px, 92%);
+  margin: 0 auto;
+  padding: 35px 0 60px;
 }
 
-.main-content h2 {
-  color: white;
+.main-content > h2 {
+  font-size: 30px;
+  margin-bottom: 8px;
 }
 
 .main-content > p {
-  color: #b8c7e0;
+  color: #64748b;
+  margin-bottom: 8px;
 }
+
+/* =========================
+   NAVIGATION
+========================= */
 
 .tabs {
   display: flex;
   gap: 10px;
-  margin: 30px 0;
   flex-wrap: wrap;
+  margin: 28px 0;
+  padding: 8px;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 8px 25px rgba(31, 41, 55, 0.07);
 }
 
 .tabs button {
-  background: #123f7a;
-  color: white;
-  border: 1px solid #2768b8;
-  padding: 12px 18px;
+  border: none;
+  background: transparent;
+  color: #526074;
+  padding: 11px 16px;
   border-radius: 10px;
-  font-weight: bold;
+  font-weight: 700;
 }
 
 .tabs button:hover {
-  background: #087cff;
+  background: #e8f7f1;
+  color: #087f5b;
 }
 
-.balance-card,
-.task-card {
-  background: #102f5c;
-  border: 1px solid #2867ad;
+/* =========================
+   BALANCE CARDS
+========================= */
+
+.balance-card {
+  background: #ffffff;
+  border: 1px solid #e4eaf1;
   border-radius: 18px;
   padding: 24px;
-  margin-bottom: 18px;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+  margin-bottom: 20px;
+  box-shadow: 0 10px 30px rgba(31, 41, 55, 0.07);
 }
 
-.balance-card h3,
+.balance-card h2,
+.balance-card h3 {
+  margin-bottom: 10px;
+}
+
+.balance-card strong {
+  display: block;
+  color: #087f5b;
+  font-size: 30px;
+  margin: 10px 0;
+}
+
+.balance-card p {
+  color: #718096;
+}
+
+/* =========================
+   TASKS
+========================= */
+
+.tasks-section h2,
+.history-section h2 {
+  margin-bottom: 20px;
+}
+
+.task-card {
+  background: #ffffff;
+  border: 1px solid #e4eaf1;
+  border-radius: 18px;
+  padding: 22px;
+  margin-bottom: 16px;
+  box-shadow: 0 8px 25px rgba(31, 41, 55, 0.06);
+}
+
 .task-card h3 {
-  color: white;
+  font-size: 20px;
+  margin-bottom: 8px;
 }
 
-.balance-card strong,
+.task-card p {
+  color: #68758a;
+  margin-bottom: 14px;
+}
+
 .task-card strong {
   display: block;
-  color: #35e39a;
-  font-size: 28px;
-  margin: 12px 0;
+  color: #087f5b;
+  font-size: 21px;
+  margin-bottom: 16px;
 }
 
-.balance-card p,
-.task-card p {
-  color: #b8c7e0;
-}
+/* =========================
+   BUTTONS
+========================= */
 
-.task-card button,
-section button {
-  background: #087cff;
-  color: white;
+button {
+  background: #087f5b;
+  color: #ffffff;
   border: none;
-  padding: 12px 20px;
   border-radius: 10px;
-  font-weight: bold;
+  padding: 11px 18px;
+  font-weight: 700;
+  transition: 0.2s ease;
 }
 
-.task-card button:hover,
-section button:hover {
-  background: #0066d6;
+button:hover {
+  transform: translateY(-1px);
+  background: #066b4d;
 }
 
-.task-card button:disabled {
-  background: #50627d;
+button:disabled {
+  background: #a8b4c2;
+  cursor: not-allowed;
+  transform: none;
 }
 
-.tasks-section {
+/* =========================
+   FORMS
+========================= */
+
+.withdraw-card,
+.profile-card,
+.admin-card {
+  background: #ffffff;
+  border: 1px solid #e4eaf1;
+  border-radius: 18px;
+  padding: 25px;
+  margin-bottom: 20px;
+  box-shadow: 0 10px 30px rgba(31, 41, 55, 0.07);
+}
+
+.withdraw-card h2,
+.profile-card h2,
+.admin-card h2 {
+  margin-bottom: 20px;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+label {
+  font-weight: 700;
+  color: #344054;
+  margin-top: 8px;
+}
+
+input {
+  width: 100%;
+  padding: 13px 14px;
+  border: 1px solid #d5dce5;
+  border-radius: 10px;
+  outline: none;
+  background: #ffffff;
+  color: #172033;
+}
+
+input:focus {
+  border-color: #087f5b;
+  box-shadow: 0 0 0 3px rgba(8, 127, 91, 0.1);
+}
+
+/* =========================
+   WITHDRAWAL HISTORY
+========================= */
+
+.withdrawal-card {
+  background: #ffffff;
+  border: 1px solid #e4eaf1;
+  border-radius: 18px;
+  padding: 22px;
+  margin-bottom: 16px;
+  box-shadow: 0 8px 25px rgba(31, 41, 55, 0.06);
+}
+
+.withdrawal-card h3 {
+  color: #087f5b;
+  font-size: 24px;
+  margin-bottom: 12px;
+}
+
+.withdrawal-card p {
+  margin: 7px 0;
+  color: #526074;
+}
+
+.pending-status {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  background: #fff4cc;
+  color: #8a6200;
+  font-weight: 700;
+}
+
+/* =========================
+   REFERRALS
+========================= */
+
+.referral-code {
+  background: #eefaf5;
+  color: #087f5b;
+  border: 1px dashed #087f5b;
+  padding: 14px;
+  border-radius: 10px;
+  font-size: 20px;
+  font-weight: 800;
+  text-align: center;
+  margin: 10px 0 20px;
+}
+
+/* =========================
+   PROFILE
+========================= */
+
+.profile-avatar {
+  width: 75px;
+  height: 75px;
+  border-radius: 50%;
+  background: #087f5b;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  font-weight: 800;
+  margin-bottom: 15px;
+}
+
+.profile-card p {
+  margin: 12px 0;
+  color: #596579;
+}
+
+/* =========================
+   AUTH SCREEN
+========================= */
+
+.auth-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 25px;
+  background: linear-gradient(
+    135deg,
+    #e7f8f1,
+    #eef7ff,
+    #f8fbff
+  );
+}
+
+.auth-card {
+  width: min(430px, 100%);
+  background: #ffffff;
+  border-radius: 22px;
+  padding: 32px;
+  box-shadow: 0 20px 55px rgba(31, 41, 55, 0.12);
+  border: 1px solid #e3e9f0;
+}
+
+.auth-card h1 {
+  text-align: center;
+  color: #087f5b;
+  font-size: 32px;
+  margin-bottom: 8px;
+}
+
+.auth-subtitle {
+  text-align: center;
+  color: #68758a;
+  margin-bottom: 25px;
+}
+
+.auth-tabs {
   display: grid;
-  gap: 18px;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 20px;
+  padding: 5px;
+  background: #f1f5f9;
+  border-radius: 12px;
 }
 
-@media (min-width: 700px) {
-  .tasks-section {
-    grid-template-columns: repeat(2, 1fr);
-  }
+.auth-tabs button {
+  background: transparent;
+  color: #526074;
+}
 
-  .tasks-section > h2 {
-    grid-column: 1 / -1;
+.auth-tabs button:hover {
+  background: #ffffff;
+  color: #087f5b;
+}
+
+.auth-submit {
+  width: 100%;
+  margin-top: 15px;
+  padding: 14px;
+  font-size: 16px;
+}
+
+.auth-error {
+  color: #c0392b;
+  background: #fff0ee;
+  padding: 10px;
+  border-radius: 8px;
+  margin-top: 10px;
+}
+
+.demo-note {
+  margin-top: 20px;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+  color: #8490a2;
+}
+
+/* =========================
+   ADMIN
+========================= */
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin: 25px 0;
+}
+
+.admin-grid .balance-card {
+  margin-bottom: 0;
+}
+
+.admin-task,
+.admin-withdrawal {
+  border: 1px solid #e3e9f0;
+  border-radius: 14px;
+  padding: 18px;
+  margin-bottom: 14px;
+  background: #f9fbfd;
+}
+
+.admin-task {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+}
+
+.admin-task h3 {
+  margin-bottom: 7px;
+}
+
+.admin-task p {
+  color: #68758a;
+  margin-bottom: 8px;
+}
+
+.admin-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.admin-actions button:last-child,
+.admin-task button {
+  background: #c0392b;
+}
+
+.admin-actions button:last-child:hover,
+.admin-task button:hover {
+  background: #a93226;
+}
+
+/* =========================
+   MOBILE
+========================= */
+
+@media (max-width: 800px) {
+  .admin-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 
 @media (max-width: 600px) {
+  .navbar {
+    padding: 14px 4%;
+  }
+
+  .navbar h1 {
+    font-size: 20px;
+  }
+
   .main-content {
-    padding: 25px 15px;
+    width: 92%;
+    padding-top: 25px;
+  }
+
+  .main-content > h2 {
+    font-size: 24px;
+  }
+
+  .tabs {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .tabs button {
-    flex: 1;
+    width: 100%;
   }
-}
+
+  .admin-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-task {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .admin-task button {
+    width: 100%;
+  }
+
+  .auth-card {
+    padding: 24px;
+  }
+
+  .auth-card h1 {
+    font-size: 28px;
+  }
+
+  .balance-card strong {
+    font-size: 26px;
+  }
+  }
