@@ -11,13 +11,6 @@ body,
 }
 
 body {
-  margin: 0;
   font-family: Arial, sans-serif;
-  background: red !important;
-  color: white;
-}
-
-#root {
-  min-height: 100vh;
-  background: red !important;
+  background: #07152e;
 }
