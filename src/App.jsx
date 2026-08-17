@@ -14,6 +14,11 @@ function App() {
     return savedTasks ? JSON.parse(savedTasks) : []
   })
 
+  const [bankName, setBankName] = useState('')
+  const [accountName, setAccountName] = useState('')
+  const [accountNumber, setAccountNumber] = useState('')
+  const [withdrawAmount, setWithdrawAmount] = useState('')
+
   const tasks = [
     {
       id: 1,
@@ -56,6 +61,46 @@ function App() {
     alert(`Task completed! You earned ₦${task.reward}.`)
   }
 
+  const handleWithdraw = (event) => {
+    event.preventDefault()
+
+    const amount = Number(withdrawAmount)
+
+    if (!bankName || !accountName || !accountNumber || !amount) {
+      alert('Please fill in all withdrawal details.')
+      return
+    }
+
+    if (accountNumber.length !== 10) {
+      alert('Please enter a valid 10-digit account number.')
+      return
+    }
+
+    if (amount < 100) {
+      alert('Minimum withdrawal amount is ₦100.')
+      return
+    }
+
+    if (amount > balance) {
+      alert('Insufficient balance.')
+      return
+    }
+
+    const newBalance = balance - amount
+
+    setBalance(newBalance)
+
+    localStorage.setItem('taskflow_balance', newBalance)
+
+    alert(
+      `Withdrawal request submitted for ₦${amount.toFixed(
+        2
+      )}. Your request is pending.`
+    )
+
+    setWithdrawAmount('')
+  }
+
   return (
     <div className="app">
       <header className="navbar">
@@ -71,7 +116,9 @@ function App() {
 
       <main className="main-content">
         <h2>Welcome back 👋</h2>
+
         <p>Your Dashboard</p>
+
         <p>Track your earnings and rewards in one place.</p>
 
         <nav className="tabs">
@@ -96,13 +143,17 @@ function App() {
           <section>
             <div className="balance-card">
               <h3>Task Balance</h3>
+
               <strong>₦{balance.toFixed(2)}</strong>
+
               <p>From completed tasks</p>
             </div>
 
             <div className="balance-card">
               <h3>Affiliate Balance</h3>
+
               <strong>₦0.00</strong>
+
               <p>From referrals</p>
             </div>
           </section>
@@ -136,24 +187,72 @@ function App() {
         )}
 
         {activeTab === 'Withdraw' && (
-          <section>
-            <h2>Withdraw</h2>
+          <section className="withdraw-section">
+            <div className="balance-card">
+              <h3>Available Balance</h3>
 
-            <p>
-              Available balance:{' '}
               <strong>₦{balance.toFixed(2)}</strong>
-            </p>
+            </div>
 
-            <button
-              onClick={() => alert('Withdrawal feature coming soon.')}
-            >
-              Withdraw
-            </button>
+            <div className="withdraw-card">
+              <h2>Withdraw Funds</h2>
+
+              <p>Enter your bank details below.</p>
+
+              <form onSubmit={handleWithdraw}>
+                <label>Bank Name</label>
+
+                <input
+                  type="text"
+                  placeholder="Enter bank name"
+                  value={bankName}
+                  onChange={(e) => setBankName(e.target.value)}
+                />
+
+                <label>Account Name</label>
+
+                <input
+                  type="text"
+                  placeholder="Enter account name"
+                  value={accountName}
+                  onChange={(e) => setAccountName(e.target.value)}
+                />
+
+                <label>Account Number</label>
+
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength="10"
+                  placeholder="10-digit account number"
+                  value={accountNumber}
+                  onChange={(e) =>
+                    setAccountNumber(
+                      e.target.value.replace(/\D/g, '')
+                    )
+                  }
+                />
+
+                <label>Withdrawal Amount</label>
+
+                <input
+                  type="number"
+                  min="100"
+                  placeholder="Minimum ₦100"
+                  value={withdrawAmount}
+                  onChange={(e) => setWithdrawAmount(e.target.value)}
+                />
+
+                <button type="submit">
+                  Submit Withdrawal
+                </button>
+              </form>
+            </div>
           </section>
         )}
 
         {activeTab === 'Referrals' && (
-          <section>
+          <section className="balance-card">
             <h2>Referrals</h2>
 
             <p>Invite friends and earn rewards.</p>
