@@ -5,23 +5,25 @@
 html,
 body,
 #root {
+  margin: 0;
+  width: 100%;
   min-height: 100%;
 }
 
 body {
-  margin: 0;
   font-family: Arial, sans-serif;
-  background: #07152e;
+  background: red !important;
   color: white;
 }
 
 .app {
   min-height: 100vh;
-  background: linear-gradient(160deg, #07152e, #0b3b7a, #061124);
+  background: red !important;
 }
 
 .navbar {
-  background: #06245c;
+  background: red !important;
+  color: white;
   padding: 20px;
   display: flex;
   justify-content: space-between;
@@ -35,8 +37,8 @@ body {
 
 .logout-btn {
   background: white;
-  color: #0755d9;
-  border: 0;
+  color: red;
+  border: none;
   padding: 10px 16px;
   border-radius: 10px;
   font-weight: bold;
@@ -52,8 +54,8 @@ body {
   color: white;
 }
 
-.main-content > p {
-  color: #b8c7e0;
+.main-content p {
+  color: white;
 }
 
 .tabs {
@@ -64,9 +66,9 @@ body {
 }
 
 .tabs button {
-  background: #123f7a;
-  color: white;
-  border: 1px solid #2768b8;
+  background: white;
+  color: red;
+  border: none;
   padding: 12px 18px;
   border-radius: 10px;
   font-weight: bold;
@@ -74,8 +76,8 @@ body {
 
 .balance-card,
 .task-card {
-  background: #102f5c;
-  border: 1px solid #2867ad;
+  background: white;
+  color: #111;
   border-radius: 18px;
   padding: 24px;
   margin-bottom: 18px;
@@ -84,32 +86,34 @@ body {
 
 .balance-card h3,
 .task-card h3 {
-  color: white;
+  color: #111;
 }
 
 .balance-card strong,
 .task-card strong {
-  color: #35e39a;
+  display: block;
+  color: #008f5a;
   font-size: 28px;
+  margin: 12px 0;
 }
 
 .balance-card p,
 .task-card p {
-  color: #b8c7e0;
+  color: #555;
 }
 
 .task-card button,
 section button {
-  background: #087cff;
+  background: red;
   color: white;
-  border: 0;
+  border: none;
   padding: 12px 20px;
   border-radius: 10px;
   font-weight: bold;
 }
 
 .task-card button:disabled {
-  background: #50627d;
+  background: #888;
 }
 
 .tasks-section {
