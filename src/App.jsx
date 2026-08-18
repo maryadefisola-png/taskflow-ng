@@ -17,14 +17,34 @@ function App() {
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('success')
 
+  const [authMode, setAuthMode] = useState('login')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [fullName, setFullName] = useState('')
+  const [authLoading, setAuthLoading] = useState(false)
+  const [authMessage, setAuthMessage] = useState('')
+  const [authError, setAuthError] = useState('')
+
   useEffect(() => {
     loadAccount()
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setUser(session?.user ?? null)
+      async (_event, session) => {
+        const currentUser = session?.user ?? null
+
+        setUser(currentUser)
+
+        if (currentUser) {
+          await loadProfile(currentUser)
+          await loadTasks()
+        } else {
+          setProfile(null)
+          setTasks([])
+        }
+
+        setLoading(false)
       }
     )
 
@@ -33,18 +53,12 @@ function App() {
     }
   }, [])
 
-  useEffect(() => {
-    if (user) {
-      loadTasks()
-    }
-  }, [user])
-
   const loadAccount = async () => {
     setLoading(true)
     setError('')
 
     const {
-      data: { user },
+      data: { user: currentUser },
       error: userError,
     } = await supabase.auth.getUser()
 
@@ -54,28 +68,31 @@ function App() {
       return
     }
 
-    if (!user) {
-      setLoading(false)
-      return
+    setUser(currentUser)
+
+    if (currentUser) {
+      await loadProfile(currentUser)
+      await loadTasks()
     }
 
-    setUser(user)
+    setLoading(false)
+  }
 
+  const loadProfile = async (currentUser) => {
     const { data, error: profileError } = await supabase
       .from('profiles')
       .select(
         'id, full_name, task_balance, affiliate_balance, is_active'
       )
-      .eq('id', user.id)
+      .eq('id', currentUser.id)
       .single()
 
     if (profileError) {
-      setError(profileError.message)
+      console.error('Profile error:', profileError.message)
+      setProfile(null)
     } else {
       setProfile(data)
     }
-
-    setLoading(false)
   }
 
   const loadTasks = async () => {
@@ -101,6 +118,81 @@ function App() {
     setTasksLoading(false)
   }
 
+  const handleAuth = async (event) => {
+    event.preventDefault()
+
+    setAuthLoading(true)
+    setAuthError('')
+    setAuthMessage('')
+
+    const cleanEmail = email.trim().toLowerCase()
+
+    if (!cleanEmail || !password) {
+      setAuthError('Please enter your email and password.')
+      setAuthLoading(false)
+      return
+    }
+
+    if (authMode === 'signup' && !fullName.trim()) {
+      setAuthError('Please enter your full name.')
+      setAuthLoading(false)
+      return
+    }
+
+    try {
+      if (authMode === 'login') {
+        const { error: loginError } =
+          await supabase.auth.signInWithPassword({
+            email: cleanEmail,
+            password,
+          })
+
+        if (loginError) {
+          setAuthError(loginError.message)
+        }
+      } else {
+        const { data, error: signupError } =
+          await supabase.auth.signUp({
+            email: cleanEmail,
+            password,
+            options: {
+              data: {
+                full_name: fullName.trim(),
+              },
+            },
+          })
+
+        if (signupError) {
+          setAuthError(signupError.message)
+        } else if (data.session) {
+          setAuthMessage(
+            'Account created successfully.'
+          )
+        } else {
+          setAuthMessage(
+            'Account created. Please check your email to confirm your account before logging in.'
+          )
+          setAuthMode('login')
+        }
+      }
+    } catch (err) {
+      setAuthError(
+        err?.message ||
+          'Something went wrong. Please try again.'
+      )
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    setUser(null)
+    setProfile(null)
+    setTasks([])
+    setActivePage('Dashboard')
+  }
+
   const openTaskSubmission = (task) => {
     setMessage('')
     setProof('')
@@ -123,7 +215,9 @@ function App() {
     const cleanProof = proof.trim()
 
     if (!cleanProof) {
-      setMessage('Please enter your proof before submitting.')
+      setMessage(
+        'Please enter your proof before submitting.'
+      )
       setMessageType('error')
       return
     }
@@ -204,6 +298,7 @@ function App() {
     return (
       <div className="auth-page">
         <div className="auth-card">
+
           <div className="auth-brand">
             <div className="tf-logo">TF</div>
 
@@ -214,10 +309,136 @@ function App() {
           </div>
 
           <div className="auth-heading">
-            <h2>Welcome to TaskFlow NG</h2>
+            <h2>
+              {authMode === 'login'
+                ? 'Welcome back'
+                : 'Create your account'}
+            </h2>
+
             <p>
-              Please log in to access your dashboard.
+              {authMode === 'login'
+                ? 'Log in to access your dashboard.'
+                : 'Create your TaskFlow NG account.'}
             </p>
+          </div>
+
+          {authError && (
+            <div className="form-error">
+              {authError}
+            </div>
+          )}
+
+          {authMessage && (
+            <div className="form-message">
+              {authMessage}
+            </div>
+          )}
+
+          <form onSubmit={handleAuth}>
+
+            {authMode === 'signup' && (
+              <div className="form-group">
+                <label>Full Name</label>
+
+                <input
+                  type="text"
+                  value={fullName}
+                  onChange={(e) =>
+                    setFullName(e.target.value)
+                  }
+                  placeholder="Enter your full name"
+                  autoComplete="name"
+                  disabled={authLoading}
+                />
+              </div>
+            )}
+
+            <div className="form-group">
+              <label>Email Address</label>
+
+              <input
+                type="email"
+                value={email}
+                onChange={(e) =>
+                  setEmail(e.target.value)
+                }
+                placeholder="Enter your email"
+                autoComplete="email"
+                disabled={authLoading}
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Password</label>
+
+              <input
+                type="password"
+                value={password}
+                onChange={(e) =>
+                  setPassword(e.target.value)
+                }
+                placeholder="Enter your password"
+                autoComplete={
+                  authMode === 'login'
+                    ? 'current-password'
+                    : 'new-password'
+                }
+                disabled={authLoading}
+                required
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="primary-button"
+              disabled={authLoading}
+            >
+              {authLoading
+                ? 'Please wait...'
+                : authMode === 'login'
+                ? 'Log In'
+                : 'Create Account'}
+            </button>
+          </form>
+
+          <div
+            style={{
+              textAlign: 'center',
+              marginTop: '18px',
+            }}
+          >
+            <p
+              style={{
+                marginBottom: '8px',
+              }}
+            >
+              {authMode === 'login'
+                ? "Don't have an account?"
+                : 'Already have an account?'}
+            </p>
+
+            <button
+              type="button"
+              className="outline-button"
+              style={{
+                width: '100%',
+              }}
+              onClick={() => {
+                setAuthMode(
+                  authMode === 'login'
+                    ? 'signup'
+                    : 'login'
+                )
+                setAuthError('')
+                setAuthMessage('')
+              }}
+              disabled={authLoading}
+            >
+              {authMode === 'login'
+                ? 'Create an Account'
+                : 'Back to Login'}
+            </button>
           </div>
         </div>
       </div>
@@ -247,16 +468,20 @@ function App() {
   const totalBalance =
     taskBalance + affiliateBalance
 
-  const fullName =
+  const displayName =
     profile?.full_name ||
     user.user_metadata?.full_name ||
     'TaskFlow User'
 
   return (
     <div className="app">
+
       <header className="topbar">
+
         <div className="topbar-left">
-          <div className="tf-logo small">TF</div>
+          <div className="tf-logo small">
+            TF
+          </div>
 
           <div>
             <h1>TaskFlow NG</h1>
@@ -265,548 +490,7 @@ function App() {
         </div>
 
         <div className="topbar-right">
+
           <div className="avatar">
-            {fullName.charAt(0).toUpperCase()}
-          </div>
-
-          <div className="profile-button-text">
-            <strong>{fullName}</strong>
-            <span>{user.email}</span>
-          </div>
-        </div>
-      </header>
-
-      <main className="dashboard-container">
-
-        {activePage === 'Dashboard' && (
-          <>
-            <div className="dashboard-heading">
-              <div>
-                <span className="section-label">
-                  OVERVIEW
-                </span>
-
-                <h2>
-                  Welcome back,{' '}
-                  {fullName.split(' ')[0]} 👋
-                </h2>
-
-                <p>
-                  Here's an overview of your TaskFlow
-                  NG earnings.
-                </p>
-              </div>
-            </div>
-
-            <div className="balance-overview">
-              <div className="balance-overview-content">
-                <span>TOTAL BALANCE</span>
-
-                <h2>
-                  ₦
-                  {totalBalance.toLocaleString(
-                    'en-NG',
-                    {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    }
-                  )}
-                </h2>
-
-                <p>
-                  Your combined Task and Affiliate
-                  balance
-                </p>
-              </div>
-
-              <div className="balance-mark">
-                ₦
-              </div>
-            </div>
-
-            <div className="wallet-grid">
-              <div className="wallet-card">
-                <div className="wallet-card-header">
-                  <div className="wallet-symbol task">
-                    T
-                  </div>
-
-                  Task Balance
-                </div>
-
-                <h3>
-                  ₦
-                  {taskBalance.toLocaleString(
-                    'en-NG',
-                    {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    }
-                  )}
-                </h3>
-
-                <p>
-                  Earned from completed tasks
-                </p>
-              </div>
-
-              <div className="wallet-card">
-                <div className="wallet-card-header">
-                  <div className="wallet-symbol affiliate">
-                    A
-                  </div>
-
-                  Affiliate Balance
-                </div>
-
-                <h3>
-                  ₦
-                  {affiliateBalance.toLocaleString(
-                    'en-NG',
-                    {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    }
-                  )}
-                </h3>
-
-                <p>
-                  Earned from referrals
-                </p>
-              </div>
-            </div>
-
-            <section className="dashboard-section">
-              <div className="section-title-row">
-                <h3>Quick Actions</h3>
-              </div>
-
-              <div className="action-grid">
-
-                <button
-                  type="button"
-                  className="action-card"
-                  onClick={() =>
-                    setActivePage('Tasks')
-                  }
-                >
-                  <div className="action-icon">
-                    T
-                  </div>
-
-                  <div>
-                    <strong>
-                      Complete Tasks
-                    </strong>
-
-                    <span>
-                      Earn money by completing
-                      available tasks.
-                    </span>
-                  </div>
-
-                  <b>→</b>
-                </button>
-
-                <button
-                  type="button"
-                  className="action-card"
-                  onClick={() =>
-                    setActivePage('Wallet')
-                  }
-                >
-                  <div className="action-icon">
-                    W
-                  </div>
-
-                  <div>
-                    <strong>
-                      Withdraw
-                    </strong>
-
-                    <span>
-                      Withdraw from your
-                      available balance.
-                    </span>
-                  </div>
-
-                  <b>→</b>
-                </button>
-
-                <button
-                  type="button"
-                  className="action-card"
-                  onClick={() =>
-                    setActivePage('Referral')
-                  }
-                >
-                  <div className="action-icon">
-                    R
-                  </div>
-
-                  <div>
-                    <strong>
-                      Refer & Earn
-                    </strong>
-
-                    <span>
-                      Invite people and earn
-                      affiliate rewards.
-                    </span>
-                  </div>
-
-                  <b>→</b>
-                </button>
-
-              </div>
-            </section>
-          </>
-        )}
-
-        {activePage === 'Tasks' && (
-          <>
-            <div className="page-heading">
-              <span className="section-label">
-                EARN
-              </span>
-
-              <h2>Available Tasks</h2>
-
-              <p>
-                Complete tasks and submit proof for
-                review.
-              </p>
-            </div>
-
-            {message && (
-              <div
-                className={
-                  messageType === 'error'
-                    ? 'form-error'
-                    : 'form-message'
-                }
-              >
-                {message}
-              </div>
-            )}
-
-            {tasksLoading ? (
-              <div className="empty-card large">
-                <strong>
-                  Loading tasks...
-                </strong>
-
-                <span>
-                  Getting available tasks from
-                  TaskFlow NG.
-                </span>
-              </div>
-            ) : tasks.length === 0 ? (
-              <div className="empty-card large">
-                <strong>
-                  No tasks available
-                </strong>
-
-                <span>
-                  Check back later for new
-                  opportunities.
-                </span>
-              </div>
-            ) : (
-              <div className="task-list">
-                {tasks.map((task, index) => (
-                  <div
-                    className="real-task-card"
-                    key={task.id}
-                  >
-                    <div className="task-card-heading">
-                      <div className="task-number">
-                        {index + 1}
-                      </div>
-
-                      <span>
-                        {task.task_type ||
-                          'Task'}
-                      </span>
-                    </div>
-
-                    <h3>{task.title}</h3>
-
-                    <p>
-                      {task.description}
-                    </p>
-
-                    <div className="task-card-bottom">
-                      <div>
-                        <small>
-                          REWARD
-                        </small>
-
-                        <strong>
-                          ₦
-                          {Number(
-                            task.reward
-                          ).toLocaleString(
-                            'en-NG',
-                            {
-                              minimumFractionDigits: 2,
-                            }
-                          )}
-                        </strong>
-                      </div>
-
-                      <button
-                        type="button"
-                        className="primary-button small-button"
-                        onClick={() =>
-                          openTaskSubmission(task)
-                        }
-                      >
-                        Submit Proof
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-
-        {activePage === 'Wallet' && (
-          <>
-            <div className="page-heading">
-              <span className="section-label">
-                WALLET
-              </span>
-
-              <h2>Your Wallet</h2>
-
-              <p>
-                Manage your TaskFlow NG balance.
-              </p>
-            </div>
-
-            <div className="balance-overview">
-              <div className="balance-overview-content">
-                <span>AVAILABLE BALANCE</span>
-
-                <h2>
-                  ₦
-                  {totalBalance.toLocaleString(
-                    'en-NG',
-                    {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    }
-                  )}
-                </h2>
-
-                <p>
-                  Task balance + Affiliate balance
-                </p>
-              </div>
-
-              <div className="balance-mark">
-                ₦
-              </div>
-            </div>
-
-            <div className="empty-card large">
-              <strong>
-                Withdrawals
-              </strong>
-
-              <span>
-                Your withdrawal section is ready
-                for the next step.
-              </span>
-            </div>
-          </>
-        )}
-
-        {activePage === 'Referral' && (
-          <>
-            <div className="page-heading">
-              <span className="section-label">
-                AFFILIATE
-              </span>
-
-              <h2>Refer & Earn</h2>
-
-              <p>
-                Invite people and earn affiliate
-                rewards.
-              </p>
-            </div>
-
-            <div className="referral-card">
-              <span>
-                AFFILIATE BALANCE
-              </span>
-
-              <h2>
-                ₦
-                {affiliateBalance.toLocaleString(
-                  'en-NG',
-                  {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  }
-                )}
-              </h2>
-
-              <p>
-                Your referral system will appear
-                here as we build the next part of
-                TaskFlow NG.
-              </p>
-            </div>
-          </>
-        )}
-
-        {selectedTask && (
-          <div
-            className="auth-page"
-            style={{
-              position: 'fixed',
-              inset: 0,
-              zIndex: 100,
-              background:
-                'rgba(23, 32, 51, 0.55)',
-            }}
-          >
-            <div className="auth-card">
-
-              <div className="auth-heading">
-                <h2>
-                  Submit Proof
-                </h2>
-
-                <p>
-                  {selectedTask.title}
-                </p>
-              </div>
-
-              <form onSubmit={submitProof}>
-
-                <label>
-                  Proof of Completion
-                </label>
-
-                <textarea
-                  value={proof}
-                  onChange={(e) =>
-                    setProof(e.target.value)
-                  }
-                  placeholder="Describe what you completed or paste your proof link here..."
-                  rows={6}
-                  disabled={submitting}
-                  style={{
-                    width: '100%',
-                    border:
-                      '1px solid #dfe3ea',
-                    borderRadius: '11px',
-                    padding: '13px 14px',
-                    resize: 'vertical',
-                    outline: 'none',
-                    fontFamily: 'inherit',
-                    color: '#172033',
-                    background: '#fff',
-                  }}
-                />
-
-                <button
-                  type="submit"
-                  className="primary-button"
-                  disabled={submitting}
-                >
-                  {submitting
-                    ? 'Submitting...'
-                    : 'Submit for Review'}
-                </button>
-
-                <button
-                  type="button"
-                  className="outline-button"
-                  disabled={submitting}
-                  style={{
-                    width: '100%',
-                    marginTop: '10px',
-                  }}
-                  onClick={
-                    closeTaskSubmission
-                  }
-                >
-                  Cancel
-                </button>
-
-              </form>
-            </div>
-          </div>
-        )}
-
-        <nav className="bottom-nav">
-
-          <button
-            className={
-              activePage === 'Dashboard'
-                ? 'active'
-                : ''
-            }
-            onClick={() =>
-              setActivePage('Dashboard')
-            }
-          >
-            <span>⌂</span>
-            Home
-          </button>
-
-          <button
-            className={
-              activePage === 'Tasks'
-                ? 'active'
-                : ''
-            }
-            onClick={() =>
-              setActivePage('Tasks')
-            }
-          >
-            <span>✓</span>
-            Tasks
-          </button>
-
-          <button
-            className={
-              activePage === 'Wallet'
-                ? 'active'
-                : ''
-            }
-            onClick={() =>
-              setActivePage('Wallet')
-            }
-          >
-            <span>₦</span>
-            Wallet
-          </button>
-
-          <button
-            className={
-              activePage === 'Referral'
-                ? 'active'
-                : ''
-            }
-            onClick={() =>
-              setActivePage('Referral')
-            }
-          >
-            <span>☰</span>
-            More
-          </button>
-
-        </nav>
-      </main>
-    </div>
-  )
-}
-
-export default App
+            {displayName
+             
