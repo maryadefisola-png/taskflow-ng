@@ -15,7 +15,6 @@ function App() {
   const [proof, setProof] = useState('')
   const [proofFile, setProofFile] = useState(null)
   const [submitting, setSubmitting] = useState(false)
-
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('success')
 
@@ -219,27 +218,18 @@ function App() {
       return
     }
 
-    const allowedTypes = [
-      'image/jpeg',
-      'image/png',
-      'image/webp',
-      'image/jpg',
-    ]
-
-    if (!allowedTypes.includes(file.type)) {
-      setMessage(
-        'Please select a JPG, PNG or WEBP image.'
-      )
+    if (!file.type.startsWith('image/')) {
+      setMessage('Please select an image screenshot.')
       setMessageType('error')
       event.target.value = ''
       setProofFile(null)
       return
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      setMessage(
-        'Screenshot is too large. Maximum size is 5MB.'
-      )
+    const maxSize = 5 * 1024 * 1024
+
+    if (file.size > maxSize) {
+      setMessage('Screenshot must be smaller than 5MB.')
       setMessageType('error')
       event.target.value = ''
       setProofFile(null)
@@ -261,7 +251,7 @@ function App() {
 
     if (!cleanProof && !proofFile) {
       setMessage(
-        'Please enter your proof or upload a screenshot.'
+        'Please enter proof or upload a screenshot before submitting.'
       )
       setMessageType('error')
       return
@@ -271,35 +261,31 @@ function App() {
     setMessage('')
 
     let uploadedFilePath = null
+    let screenshotUrl = null
 
     try {
-      let screenshotUrl = ''
-
       /*
+       * STEP 1:
        * Upload screenshot if the user selected one.
        */
       if (proofFile) {
         const fileExtension =
-          proofFile.name.split('.').pop()?.toLowerCase() ||
-          'jpg'
+          proofFile.name.split('.').pop()?.toLowerCase() || 'jpg'
 
-        const fileName = `${Date.now()}-${Math.random()
+        const safeFileName = `${Date.now()}-${Math.random()
           .toString(36)
           .substring(2, 10)}.${fileExtension}`
 
-        const filePath = `${user.id}/${fileName}`
+        const filePath = `${user.id}/${safeFileName}`
 
-        uploadedFilePath = filePath
-
-        const {
-          error: uploadError,
-        } = await supabase.storage
-          .from('task-proofs')
-          .upload(filePath, proofFile, {
-            cacheControl: '3600',
-            upsert: false,
-            contentType: proofFile.type,
-          })
+        const { error: uploadError } =
+          await supabase.storage
+            .from('task-proofs')
+            .upload(filePath, proofFile, {
+              cacheControl: '3600',
+              upsert: false,
+              contentType: proofFile.type,
+            })
 
         if (uploadError) {
           console.error(
@@ -314,6 +300,12 @@ function App() {
           return
         }
 
+        uploadedFilePath = filePath
+
+        /*
+         * Your task-proofs bucket is currently public,
+         * so we can generate a public URL.
+         */
         const {
           data: publicUrlData,
         } = supabase.storage
@@ -321,37 +313,38 @@ function App() {
           .getPublicUrl(filePath)
 
         screenshotUrl =
-          publicUrlData?.publicUrl || ''
+          publicUrlData?.publicUrl || null
       }
 
       /*
-       * Save the proof and screenshot URL.
-       *
-       * The existing database has a "proof" text column,
-       * so we store the text proof and screenshot URL
-       * together in that column.
+       * STEP 2:
+       * Build the proof that will be saved
+       * in task_submissions.proof
        */
       let finalProof = cleanProof
 
       if (screenshotUrl) {
         if (finalProof) {
-          finalProof += `\n\nScreenshot: ${screenshotUrl}`
+          finalProof += `\n\nScreenshot:\n${screenshotUrl}`
         } else {
-          finalProof = `Screenshot: ${screenshotUrl}`
+          finalProof = `Screenshot:\n${screenshotUrl}`
         }
       }
 
-      const {
-        error: submissionError,
-      } = await supabase
-        .from('task_submissions')
-        .insert({
-          user_id: user.id,
-          task_id: selectedTask.id,
-          proof: finalProof,
-          status: 'Pending',
-          reward: Number(selectedTask.reward),
-        })
+      /*
+       * STEP 3:
+       * Save the task submission.
+       */
+      const { error: submissionError } =
+        await supabase
+          .from('task_submissions')
+          .insert({
+            user_id: user.id,
+            task_id: selectedTask.id,
+            proof: finalProof,
+            status: 'Pending',
+            reward: Number(selectedTask.reward),
+          })
 
       if (submissionError) {
         console.error(
@@ -360,9 +353,9 @@ function App() {
         )
 
         /*
-         * If the database submission fails after the
-         * screenshot uploaded, remove the screenshot
-         * so we don't leave an unused file.
+         * If the database submission failed after
+         * uploading the screenshot, remove the uploaded
+         * screenshot so we don't leave unused files.
          */
         if (uploadedFilePath) {
           await supabase.storage
@@ -403,16 +396,9 @@ function App() {
       )
 
       if (uploadedFilePath) {
-        try {
-          await supabase.storage
-            .from('task-proofs')
-            .remove([uploadedFilePath])
-        } catch (cleanupError) {
-          console.error(
-            'Screenshot cleanup error:',
-            cleanupError
-          )
-        }
+        await supabase.storage
+          .from('task-proofs')
+          .remove([uploadedFilePath])
       }
 
       setMessage(
@@ -589,6 +575,7 @@ function App() {
                     ? 'signup'
                     : 'login'
                 )
+
                 setAuthError('')
                 setAuthMessage('')
               }}
@@ -959,12 +946,14 @@ function App() {
                 setMessage(
                   'Referral code copied successfully.'
                 )
+
                 setMessageType('success')
               })
               .catch(() => {
                 setMessage(
                   'Copy failed. Please copy the code manually.'
                 )
+
                 setMessageType('error')
               })
           }}
@@ -1009,6 +998,7 @@ function App() {
             setMessage(
               'Withdrawal requests will be available once the withdrawal system is connected.'
             )
+
             setMessageType('success')
           }}
         >
@@ -1033,6 +1023,7 @@ function App() {
             setMessage(
               'Withdrawal requests will be available once the withdrawal system is connected.'
             )
+
             setMessageType('success')
           }}
         >
@@ -1171,6 +1162,7 @@ function App() {
 
           <div>
             <h1>TaskFlow NG</h1>
+
             <span>Rewards Dashboard</span>
           </div>
         </div>
@@ -1352,7 +1344,8 @@ function App() {
               padding: '28px',
               boxShadow:
                 '0 25px 70px rgba(23, 32, 51, 0.2)',
-              margin: '20px 0',
+              maxHeight: '90vh',
+              overflowY: 'auto',
             }}
           >
             <div
@@ -1412,7 +1405,8 @@ function App() {
                 marginBottom: '18px',
               }}
             >
-              Reward: {formatMoney(selectedTask.reward)}
+              Reward:{' '}
+              {formatMoney(selectedTask.reward)}
             </div>
 
             <form onSubmit={submitProof}>
@@ -1424,7 +1418,48 @@ function App() {
                   fontWeight: 700,
                 }}
               >
-                Your Proof
+                Upload Screenshot
+              </label>
+
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleProofFile}
+                disabled={submitting}
+                style={{
+                  width: '100%',
+                  border: '1px solid #dfe3ea',
+                  borderRadius: '11px',
+                  padding: '12px',
+                  marginBottom: '15px',
+                  background: '#fafbfc',
+                }}
+              />
+
+              {proofFile && (
+                <div
+                  style={{
+                    background: '#eef8f3',
+                    color: '#17734d',
+                    padding: '10px 12px',
+                    borderRadius: '10px',
+                    marginBottom: '15px',
+                    fontSize: '13px',
+                  }}
+                >
+                  📸 Selected: {proofFile.name}
+                </div>
+              )}
+
+              <label
+                style={{
+                  display: 'block',
+                  marginBottom: '7px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                }}
+              >
+                Additional Proof
               </label>
 
               <textarea
@@ -1432,7 +1467,7 @@ function App() {
                 onChange={(e) =>
                   setProof(e.target.value)
                 }
-                placeholder="Enter your proof, link, username, or other verification details..."
+                placeholder="Enter a link, username, description, or other verification details..."
                 disabled={submitting}
                 rows={5}
                 style={{
@@ -1444,94 +1479,14 @@ function App() {
                   outline: 'none',
                   font: 'inherit',
                   boxSizing: 'border-box',
+                  marginBottom: '15px',
                 }}
               />
-
-              <div
-                style={{
-                  marginTop: '16px',
-                  marginBottom: '8px',
-                }}
-              >
-                <label
-                  htmlFor="proof-screenshot"
-                  style={{
-                    display: 'block',
-                    fontSize: '13px',
-                    fontWeight: 700,
-                    marginBottom: '8px',
-                  }}
-                >
-                  Upload Screenshot
-                </label>
-
-                <input
-                  id="proof-screenshot"
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={handleProofFile}
-                  disabled={submitting}
-                  style={{
-                    width: '100%',
-                    boxSizing: 'border-box',
-                    padding: '12px',
-                    border: '1px dashed #cbd2dc',
-                    borderRadius: '11px',
-                    background: '#f8fafc',
-                  }}
-                />
-
-                <small
-                  style={{
-                    display: 'block',
-                    color: '#7b8597',
-                    marginTop: '7px',
-                    fontSize: '12px',
-                  }}
-                >
-                  JPG, PNG or WEBP. Maximum 5MB.
-                </small>
-
-                {proofFile && (
-                  <div
-                    style={{
-                      marginTop: '10px',
-                      padding: '10px 12px',
-                      background: '#eef8f3',
-                      color: '#17734d',
-                      borderRadius: '9px',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                    }}
-                  >
-                    ✓ {proofFile.name}
-                  </div>
-                )}
-              </div>
-
-              {message && (
-                <div
-                  className={
-                    messageType === 'error'
-                      ? 'form-error'
-                      : 'form-message'
-                  }
-                  style={{
-                    marginTop: '14px',
-                    marginBottom: '14px',
-                  }}
-                >
-                  {message}
-                </div>
-              )}
 
               <button
                 type="submit"
                 className="primary-button"
                 disabled={submitting}
-                style={{
-                  width: '100%',
-                }}
               >
                 {submitting
                   ? 'Uploading & Submitting...'
