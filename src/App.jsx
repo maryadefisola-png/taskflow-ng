@@ -13,7 +13,9 @@ function App() {
 
   const [selectedTask, setSelectedTask] = useState(null)
   const [proof, setProof] = useState('')
+  const [proofFile, setProofFile] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('success')
 
@@ -198,13 +200,54 @@ function App() {
   const openTaskSubmission = (task) => {
     setMessage('')
     setProof('')
+    setProofFile(null)
     setSelectedTask(task)
   }
 
   const closeTaskSubmission = () => {
     setSelectedTask(null)
     setProof('')
+    setProofFile(null)
     setSubmitting(false)
+  }
+
+  const handleProofFile = (event) => {
+    const file = event.target.files?.[0]
+
+    if (!file) {
+      setProofFile(null)
+      return
+    }
+
+    const allowedTypes = [
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'image/jpg',
+    ]
+
+    if (!allowedTypes.includes(file.type)) {
+      setMessage(
+        'Please select a JPG, PNG or WEBP image.'
+      )
+      setMessageType('error')
+      event.target.value = ''
+      setProofFile(null)
+      return
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setMessage(
+        'Screenshot is too large. Maximum size is 5MB.'
+      )
+      setMessageType('error')
+      event.target.value = ''
+      setProofFile(null)
+      return
+    }
+
+    setMessage('')
+    setProofFile(file)
   }
 
   const submitProof = async (event) => {
@@ -216,9 +259,9 @@ function App() {
 
     const cleanProof = proof.trim()
 
-    if (!cleanProof) {
+    if (!cleanProof && !proofFile) {
       setMessage(
-        'Please enter your proof before submitting.'
+        'Please enter your proof or upload a screenshot.'
       )
       setMessageType('error')
       return
@@ -227,13 +270,85 @@ function App() {
     setSubmitting(true)
     setMessage('')
 
+    let uploadedFilePath = null
+
     try {
-      const { error: submissionError } = await supabase
+      let screenshotUrl = ''
+
+      /*
+       * Upload screenshot if the user selected one.
+       */
+      if (proofFile) {
+        const fileExtension =
+          proofFile.name.split('.').pop()?.toLowerCase() ||
+          'jpg'
+
+        const fileName = `${Date.now()}-${Math.random()
+          .toString(36)
+          .substring(2, 10)}.${fileExtension}`
+
+        const filePath = `${user.id}/${fileName}`
+
+        uploadedFilePath = filePath
+
+        const {
+          error: uploadError,
+        } = await supabase.storage
+          .from('task-proofs')
+          .upload(filePath, proofFile, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: proofFile.type,
+          })
+
+        if (uploadError) {
+          console.error(
+            'Screenshot upload error:',
+            uploadError
+          )
+
+          setMessage(
+            `Screenshot upload failed: ${uploadError.message}`
+          )
+          setMessageType('error')
+          return
+        }
+
+        const {
+          data: publicUrlData,
+        } = supabase.storage
+          .from('task-proofs')
+          .getPublicUrl(filePath)
+
+        screenshotUrl =
+          publicUrlData?.publicUrl || ''
+      }
+
+      /*
+       * Save the proof and screenshot URL.
+       *
+       * The existing database has a "proof" text column,
+       * so we store the text proof and screenshot URL
+       * together in that column.
+       */
+      let finalProof = cleanProof
+
+      if (screenshotUrl) {
+        if (finalProof) {
+          finalProof += `\n\nScreenshot: ${screenshotUrl}`
+        } else {
+          finalProof = `Screenshot: ${screenshotUrl}`
+        }
+      }
+
+      const {
+        error: submissionError,
+      } = await supabase
         .from('task_submissions')
         .insert({
           user_id: user.id,
           task_id: selectedTask.id,
-          proof: cleanProof,
+          proof: finalProof,
           status: 'Pending',
           reward: Number(selectedTask.reward),
         })
@@ -243,6 +358,17 @@ function App() {
           'Task submission error:',
           submissionError
         )
+
+        /*
+         * If the database submission fails after the
+         * screenshot uploaded, remove the screenshot
+         * so we don't leave an unused file.
+         */
+        if (uploadedFilePath) {
+          await supabase.storage
+            .from('task-proofs')
+            .remove([uploadedFilePath])
+        }
 
         if (submissionError.code === '23505') {
           setMessage(
@@ -262,6 +388,7 @@ function App() {
 
       setSelectedTask(null)
       setProof('')
+      setProofFile(null)
 
       setMessage(
         `Success! Your proof for "${submittedTaskTitle}" has been submitted and is waiting for review.`
@@ -275,6 +402,19 @@ function App() {
         err
       )
 
+      if (uploadedFilePath) {
+        try {
+          await supabase.storage
+            .from('task-proofs')
+            .remove([uploadedFilePath])
+        } catch (cleanupError) {
+          console.error(
+            'Screenshot cleanup error:',
+            cleanupError
+          )
+        }
+      }
+
       setMessage(
         'Something went wrong while submitting your proof. Please try again.'
       )
@@ -287,6 +427,7 @@ function App() {
   const goTo = (page) => {
     setActivePage(page)
     setMenuOpen(false)
+
     window.scrollTo({
       top: 0,
       behavior: 'smooth',
@@ -580,6 +721,7 @@ function App() {
 
             <div>
               <strong>Complete Tasks</strong>
+
               <span>
                 Earn rewards by completing available
                 tasks.
@@ -597,6 +739,7 @@ function App() {
 
             <div>
               <strong>Refer Friends</strong>
+
               <span>
                 Invite people and grow your affiliate
                 earnings.
@@ -614,6 +757,7 @@ function App() {
 
             <div>
               <strong>Withdraw</strong>
+
               <span>
                 Request a withdrawal from your balance.
               </span>
@@ -639,6 +783,7 @@ function App() {
         {tasksLoading ? (
           <div className="empty-card">
             <strong>Loading tasks...</strong>
+
             <span>
               Please wait while we load available tasks.
             </span>
@@ -646,6 +791,7 @@ function App() {
         ) : tasks.length === 0 ? (
           <div className="empty-card">
             <strong>No tasks available</strong>
+
             <span>
               New tasks will appear here when they are
               published.
@@ -716,6 +862,7 @@ function App() {
       {tasksLoading ? (
         <div className="empty-card large">
           <strong>Loading tasks...</strong>
+
           <span>
             Please wait while we load available tasks.
           </span>
@@ -723,6 +870,7 @@ function App() {
       ) : tasks.length === 0 ? (
         <div className="empty-card large">
           <strong>No tasks available</strong>
+
           <span>
             Check back later for new earning
             opportunities.
@@ -948,16 +1096,19 @@ function App() {
         <div className="profile-details">
           <div>
             <span>Full Name</span>
+
             <strong>{displayName}</strong>
           </div>
 
           <div>
             <span>Email</span>
+
             <strong>{user.email}</strong>
           </div>
 
           <div>
             <span>Task Balance</span>
+
             <strong>
               {formatMoney(taskBalance)}
             </strong>
@@ -965,6 +1116,7 @@ function App() {
 
           <div>
             <span>Affiliate Balance</span>
+
             <strong>
               {formatMoney(affiliateBalance)}
             </strong>
@@ -972,6 +1124,7 @@ function App() {
 
           <div>
             <span>Account Status</span>
+
             <strong>
               {profile?.is_active
                 ? 'Active'
@@ -1033,6 +1186,7 @@ function App() {
 
             <div className="profile-button-text">
               <strong>{displayName}</strong>
+
               <span>My Profile</span>
             </div>
           </button>
@@ -1186,6 +1340,7 @@ function App() {
             justifyContent: 'center',
             padding: '20px',
             zIndex: 100,
+            overflowY: 'auto',
           }}
         >
           <div
@@ -1197,6 +1352,7 @@ function App() {
               padding: '28px',
               boxShadow:
                 '0 25px 70px rgba(23, 32, 51, 0.2)',
+              margin: '20px 0',
             }}
           >
             <div
@@ -1278,7 +1434,7 @@ function App() {
                 }
                 placeholder="Enter your proof, link, username, or other verification details..."
                 disabled={submitting}
-                rows={6}
+                rows={5}
                 style={{
                   width: '100%',
                   resize: 'vertical',
@@ -1287,16 +1443,98 @@ function App() {
                   padding: '13px 14px',
                   outline: 'none',
                   font: 'inherit',
+                  boxSizing: 'border-box',
                 }}
               />
+
+              <div
+                style={{
+                  marginTop: '16px',
+                  marginBottom: '8px',
+                }}
+              >
+                <label
+                  htmlFor="proof-screenshot"
+                  style={{
+                    display: 'block',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    marginBottom: '8px',
+                  }}
+                >
+                  Upload Screenshot
+                </label>
+
+                <input
+                  id="proof-screenshot"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleProofFile}
+                  disabled={submitting}
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    padding: '12px',
+                    border: '1px dashed #cbd2dc',
+                    borderRadius: '11px',
+                    background: '#f8fafc',
+                  }}
+                />
+
+                <small
+                  style={{
+                    display: 'block',
+                    color: '#7b8597',
+                    marginTop: '7px',
+                    fontSize: '12px',
+                  }}
+                >
+                  JPG, PNG or WEBP. Maximum 5MB.
+                </small>
+
+                {proofFile && (
+                  <div
+                    style={{
+                      marginTop: '10px',
+                      padding: '10px 12px',
+                      background: '#eef8f3',
+                      color: '#17734d',
+                      borderRadius: '9px',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                    }}
+                  >
+                    ✓ {proofFile.name}
+                  </div>
+                )}
+              </div>
+
+              {message && (
+                <div
+                  className={
+                    messageType === 'error'
+                      ? 'form-error'
+                      : 'form-message'
+                  }
+                  style={{
+                    marginTop: '14px',
+                    marginBottom: '14px',
+                  }}
+                >
+                  {message}
+                </div>
+              )}
 
               <button
                 type="submit"
                 className="primary-button"
                 disabled={submitting}
+                style={{
+                  width: '100%',
+                }}
               >
                 {submitting
-                  ? 'Submitting...'
+                  ? 'Uploading & Submitting...'
                   : 'Submit Proof'}
               </button>
 
