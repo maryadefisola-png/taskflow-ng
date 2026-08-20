@@ -28,6 +28,10 @@ function App() {
 
   const [menuOpen, setMenuOpen] = useState(false)
 
+  // Paystack deposit states
+  const [depositAmount, setDepositAmount] = useState('')
+  const [depositLoading, setDepositLoading] = useState(false)
+
   useEffect(() => {
     loadAccount()
 
@@ -196,6 +200,64 @@ function App() {
     setMenuOpen(false)
   }
 
+  // --------------------------------------------------
+  // PAYSTACK DEPOSIT
+  // --------------------------------------------------
+
+  const initializeDeposit = async () => {
+    if (!user) return
+
+    const amount = Number(depositAmount)
+
+    if (!Number.isFinite(amount) || amount < 1000) {
+      setMessage('Minimum deposit is ₦1,000.')
+      setMessageType('error')
+      return
+    }
+
+    setDepositLoading(true)
+    setMessage('')
+
+    try {
+      const { data, error } =
+        await supabase.functions.invoke(
+          'initialize-payment',
+          {
+            body: {
+              email: user.email,
+              amount,
+            },
+          }
+        )
+
+      if (error) {
+        throw new Error(error.message)
+      }
+
+      if (!data?.status || !data?.data?.authorization_url) {
+        throw new Error(
+          data?.message ||
+            'Unable to initialize payment.'
+        )
+      }
+
+      // Open Paystack checkout
+      window.location.href =
+        data.data.authorization_url
+    } catch (err) {
+      console.error('Deposit error:', err)
+
+      setMessage(
+        err?.message ||
+          'Unable to start the deposit. Please try again.'
+      )
+
+      setMessageType('error')
+    } finally {
+      setDepositLoading(false)
+    }
+  }
+
   const openTaskSubmission = (task) => {
     setMessage('')
     setProof('')
@@ -264,10 +326,6 @@ function App() {
     let screenshotUrl = null
 
     try {
-      /*
-       * STEP 1:
-       * Upload screenshot if the user selected one.
-       */
       if (proofFile) {
         const fileExtension =
           proofFile.name.split('.').pop()?.toLowerCase() || 'jpg'
@@ -302,10 +360,6 @@ function App() {
 
         uploadedFilePath = filePath
 
-        /*
-         * Your task-proofs bucket is currently public,
-         * so we can generate a public URL.
-         */
         const {
           data: publicUrlData,
         } = supabase.storage
@@ -316,11 +370,6 @@ function App() {
           publicUrlData?.publicUrl || null
       }
 
-      /*
-       * STEP 2:
-       * Build the proof that will be saved
-       * in task_submissions.proof
-       */
       let finalProof = cleanProof
 
       if (screenshotUrl) {
@@ -331,10 +380,6 @@ function App() {
         }
       }
 
-      /*
-       * STEP 3:
-       * Save the task submission.
-       */
       const { error: submissionError } =
         await supabase
           .from('task_submissions')
@@ -352,11 +397,6 @@ function App() {
           submissionError
         )
 
-        /*
-         * If the database submission failed after
-         * uploading the screenshot, remove the uploaded
-         * screenshot so we don't leave unused files.
-         */
         if (uploadedFilePath) {
           await supabase.storage
             .from('task-proofs')
@@ -413,6 +453,8 @@ function App() {
   const goTo = (page) => {
     setActivePage(page)
     setMenuOpen(false)
+
+    setMessage('')
 
     window.scrollTo({
       top: 0,
@@ -738,6 +780,23 @@ function App() {
 
           <button
             className="action-card"
+            onClick={() => goTo('Deposit')}
+          >
+            <div className="action-icon">₦</div>
+
+            <div>
+              <strong>Deposit</strong>
+
+              <span>
+                Add funds securely to your account.
+              </span>
+            </div>
+
+            <b>›</b>
+          </button>
+
+          <button
+            className="action-card"
             onClick={() => goTo('Withdraw')}
           >
             <div className="action-icon">₦</div>
@@ -976,6 +1035,81 @@ function App() {
     </>
   )
 
+  const depositPage = (
+    <>
+      <div className="page-heading">
+        <span className="section-label">
+          DEPOSIT
+        </span>
+
+        <h2>Fund Your Account</h2>
+
+        <p>
+          Add funds securely through Paystack.
+        </p>
+      </div>
+
+      <div className="profile-card">
+        <div className="balance-overview-content">
+          <span>CURRENT BALANCE</span>
+
+          <h2>{formatMoney(totalBalance)}</h2>
+
+          <p>
+            Your current Task and Affiliate balance.
+          </p>
+        </div>
+
+        <div
+          className="form-group"
+          style={{ marginTop: '24px' }}
+        >
+          <label>Deposit Amount</label>
+
+          <input
+            type="number"
+            min="1000"
+            step="100"
+            value={depositAmount}
+            onChange={(e) =>
+              setDepositAmount(e.target.value)
+            }
+            placeholder="Enter amount"
+            disabled={depositLoading}
+          />
+
+          <small>
+            Minimum deposit: ₦1,000
+          </small>
+        </div>
+
+        {message && (
+          <div
+            className={
+              messageType === 'error'
+                ? 'form-error'
+                : 'form-message'
+            }
+            style={{ marginTop: '15px' }}
+          >
+            {message}
+          </div>
+        )}
+
+        <button
+          className="primary-button"
+          onClick={initializeDeposit}
+          disabled={depositLoading}
+          style={{ marginTop: '18px' }}
+        >
+          {depositLoading
+            ? 'Opening Paystack...'
+            : 'Deposit with Paystack'}
+        </button>
+      </div>
+    </>
+  )
+
   const withdrawPage = (
     <>
       <div className="page-heading">
@@ -1144,6 +1278,10 @@ function App() {
     pageContent = referralPage
   }
 
+  if (activePage === 'Deposit') {
+    pageContent = depositPage
+  }
+
   if (activePage === 'Withdraw') {
     pageContent = withdrawPage
   }
@@ -1232,6 +1370,17 @@ function App() {
             onClick={() => goTo('Referral')}
           >
             Referral
+          </button>
+
+          <button
+            className={`menu-link ${
+              activePage === 'Deposit'
+                ? 'active'
+                : ''
+            }`}
+            onClick={() => goTo('Deposit')}
+          >
+            Deposit
           </button>
 
           <button
