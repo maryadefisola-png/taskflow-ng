@@ -39,7 +39,7 @@ function App() {
   const [depositLoading, setDepositLoading] = useState(false)
 
   // -----------------------------
-  // TEST WITHDRAWAL
+  // WITHDRAWAL
   // -----------------------------
 
   const [withdrawalBalanceType, setWithdrawalBalanceType] =
@@ -77,6 +77,8 @@ function App() {
           await loadProfile(currentUser)
           await loadTasks()
           loadWithdrawalHistory(currentUser.id)
+
+          await verifyReturnedPayment()
         } else {
           setProfile(null)
           setTasks([])
@@ -113,6 +115,8 @@ function App() {
       await loadProfile(currentUser)
       await loadTasks()
       loadWithdrawalHistory(currentUser.id)
+
+      await verifyReturnedPayment()
     }
 
     setLoading(false)
@@ -164,6 +168,109 @@ function App() {
   }
 
   // -----------------------------
+  // VERIFY RETURNED PAYSTACK PAYMENT
+  // -----------------------------
+
+  const verifyReturnedPayment = async () => {
+    const params = new URLSearchParams(
+      window.location.search
+    )
+
+    const reference =
+      params.get('reference')
+
+    const paymentStatus =
+      params.get('payment')
+
+    if (
+      paymentStatus !== 'success' ||
+      !reference
+    ) {
+      return
+    }
+
+    setMessage(
+      'Verifying your payment...'
+    )
+    setMessageType('success')
+
+    try {
+      const {
+        data,
+        error: verifyError,
+      } =
+        await supabase.functions.invoke(
+          'verify-payment',
+          {
+            body: {
+              reference,
+            },
+          }
+        )
+
+      if (verifyError) {
+        throw new Error(
+          verifyError.message
+        )
+      }
+
+      if (!data?.status) {
+        throw new Error(
+          data?.message ||
+            'Payment verification failed.'
+        )
+      }
+
+      const {
+        data: {
+          user: currentUser,
+        },
+      } =
+        await supabase.auth.getUser()
+
+      if (currentUser) {
+        await loadProfile(
+          currentUser
+        )
+      }
+
+      if (
+        data.already_processed
+      ) {
+        setMessage(
+          'This payment has already been credited.'
+        )
+      } else {
+        setMessage(
+          `Payment successful! ${formatMoney(
+            data.amount
+          )} has been added to your Task Balance.`
+        )
+      }
+
+      setMessageType('success')
+
+      window.history.replaceState(
+        {},
+        document.title,
+        window.location.pathname
+      )
+    } catch (err) {
+      console.error(
+        'Payment verification error:',
+        err
+      )
+
+      setMessage(
+        err?.message ||
+          'We could not verify your payment. Please contact support if money was deducted.'
+      )
+
+      setMessageType('error')
+    }
+  }
+
+  // -----------------------------
   // AUTH
   // -----------------------------
 
@@ -174,7 +281,8 @@ function App() {
     setAuthError('')
     setAuthMessage('')
 
-    const cleanEmail = email.trim().toLowerCase()
+    const cleanEmail =
+      email.trim().toLowerCase()
 
     if (!cleanEmail || !password) {
       setAuthError(
@@ -188,37 +296,53 @@ function App() {
       authMode === 'signup' &&
       !fullName.trim()
     ) {
-      setAuthError('Please enter your full name.')
+      setAuthError(
+        'Please enter your full name.'
+      )
       setAuthLoading(false)
       return
     }
 
     try {
       if (authMode === 'login') {
-        const { error: loginError } =
-          await supabase.auth.signInWithPassword({
-            email: cleanEmail,
-            password,
-          })
+        const {
+          error: loginError,
+        } =
+          await supabase.auth.signInWithPassword(
+            {
+              email: cleanEmail,
+              password,
+            }
+          )
 
         if (loginError) {
-          setAuthError(loginError.message)
+          setAuthError(
+            loginError.message
+          )
         }
       } else {
-        const { data, error: signupError } =
+        const {
+          data,
+          error: signupError,
+        } =
           await supabase.auth.signUp({
             email: cleanEmail,
             password,
             options: {
               data: {
-                full_name: fullName.trim(),
+                full_name:
+                  fullName.trim(),
               },
             },
           })
 
         if (signupError) {
-          setAuthError(signupError.message)
-        } else if (data.session) {
+          setAuthError(
+            signupError.message
+          )
+        } else if (
+          data.session
+        ) {
           setAuthMessage(
             'Account created successfully.'
           )
@@ -226,6 +350,7 @@ function App() {
           setAuthMessage(
             'Account created. Please check your email to confirm your account before logging in.'
           )
+
           setAuthMode('login')
         }
       }
@@ -257,13 +382,16 @@ function App() {
   const initializeDeposit = async () => {
     if (!user) return
 
-    const amount = Number(depositAmount)
+    const amount =
+      Number(depositAmount)
 
     if (
       !Number.isFinite(amount) ||
       amount < 1000
     ) {
-      setMessage('Minimum deposit is ₦1,000.')
+      setMessage(
+        'Minimum deposit is ₦1,000.'
+      )
       setMessageType('error')
       return
     }
@@ -272,24 +400,31 @@ function App() {
     setMessage('')
 
     try {
-      const { data, error } =
+      const {
+        data,
+        error: functionError,
+      } =
         await supabase.functions.invoke(
           'initialize-payment',
           {
             body: {
-              email: user.email,
+              email:
+                user.email,
               amount,
             },
           }
         )
 
-      if (error) {
-        throw new Error(error.message)
+      if (functionError) {
+        throw new Error(
+          functionError.message
+        )
       }
 
       if (
         !data?.status ||
-        !data?.data?.authorization_url
+        !data?.data
+          ?.authorization_url
       ) {
         throw new Error(
           data?.message ||
@@ -317,27 +452,37 @@ function App() {
   }
 
   // -----------------------------
-  // TEST WITHDRAWAL STORAGE
+  // WITHDRAWAL STORAGE
   // -----------------------------
 
-  const withdrawalStorageKey = (userId) =>
+  const withdrawalStorageKey = (
+    userId
+  ) =>
     `taskflow_test_withdrawals_${userId}`
 
-  const loadWithdrawalHistory = (userId) => {
+  const loadWithdrawalHistory = (
+    userId
+  ) => {
     try {
-      const saved = localStorage.getItem(
-        withdrawalStorageKey(userId)
-      )
+      const saved =
+        localStorage.getItem(
+          withdrawalStorageKey(
+            userId
+          )
+        )
 
       if (!saved) {
         setWithdrawalHistory([])
         return
       }
 
-      const parsed = JSON.parse(saved)
+      const parsed =
+        JSON.parse(saved)
 
       setWithdrawalHistory(
-        Array.isArray(parsed) ? parsed : []
+        Array.isArray(parsed)
+          ? parsed
+          : []
       )
     } catch (err) {
       console.error(
@@ -354,25 +499,30 @@ function App() {
     history
   ) => {
     localStorage.setItem(
-      withdrawalStorageKey(userId),
+      withdrawalStorageKey(
+        userId
+      ),
       JSON.stringify(history)
     )
 
-    setWithdrawalHistory(history)
+    setWithdrawalHistory(
+      history
+    )
   }
 
-  const generateWithdrawalReference = () => {
-    const random =
-      Math.random()
-        .toString(36)
-        .substring(2, 9)
-        .toUpperCase()
+  const generateWithdrawalReference =
+    () => {
+      const random =
+        Math.random()
+          .toString(36)
+          .substring(2, 9)
+          .toUpperCase()
 
-    return `TFW-TEST-${Date.now()}-${random}`
-  }
+      return `TFW-TEST-${Date.now()}-${random}`
+    }
 
   // -----------------------------
-  // TEST WITHDRAWAL SUBMISSION
+  // TEST WITHDRAWAL
   // -----------------------------
 
   const submitTestWithdrawal = async (
@@ -388,17 +538,21 @@ function App() {
       return
     }
 
-    const amount = Number(
-      withdrawalAmount
-    )
+    const amount =
+      Number(
+        withdrawalAmount
+      )
 
     const selectedBalance =
-      withdrawalBalanceType === 'task'
+      withdrawalBalanceType ===
+      'task'
         ? Number(
-            profile?.task_balance ?? 0
+            profile?.task_balance ??
+              0
           )
         : Number(
-            profile?.affiliate_balance ?? 0
+            profile?.affiliate_balance ??
+              0
           )
 
     const cleanBankName =
@@ -412,7 +566,8 @@ function App() {
 
     if (
       !Number.isFinite(amount) ||
-      amount < WITHDRAWAL_MINIMUM
+      amount <
+        WITHDRAWAL_MINIMUM
     ) {
       setMessage(
         'Minimum withdrawal is ₦1,000.'
@@ -421,10 +576,14 @@ function App() {
       return
     }
 
-    if (amount > selectedBalance) {
+    if (
+      amount >
+      selectedBalance
+    ) {
       setMessage(
         `Insufficient ${
-          withdrawalBalanceType === 'task'
+          withdrawalBalanceType ===
+          'task'
             ? 'Task'
             : 'Affiliate'
         } Balance.`
@@ -469,15 +628,18 @@ function App() {
         generateWithdrawalReference()
 
       const newWithdrawal = {
-        id: crypto?.randomUUID
-          ? crypto.randomUUID()
-          : `${Date.now()}`,
+        id:
+          crypto?.randomUUID
+            ? crypto.randomUUID()
+            : `${Date.now()}`,
 
-        user_id: user.id,
+        user_id:
+          user.id,
 
         amount,
 
-        bank_name: cleanBankName,
+        bank_name:
+          cleanBankName,
 
         account_name:
           cleanAccountName,
@@ -488,7 +650,8 @@ function App() {
         payment_reference:
           reference,
 
-        status: 'pending',
+        status:
+          'pending',
 
         balance_type:
           withdrawalBalanceType,
@@ -586,7 +749,9 @@ function App() {
     const maxSize =
       5 * 1024 * 1024
 
-    if (file.size > maxSize) {
+    if (
+      file.size > maxSize
+    ) {
       setMessage(
         'Screenshot must be smaller than 5MB.'
       )
@@ -657,17 +822,21 @@ function App() {
           `${user.id}/${safeFileName}`
 
         const {
-          error: uploadError,
+          error:
+            uploadError,
         } =
           await supabase.storage
-            .from('task-proofs')
+            .from(
+              'task-proofs'
+            )
             .upload(
               filePath,
               proofFile,
               {
                 cacheControl:
                   '3600',
-                upsert: false,
+                upsert:
+                  false,
                 contentType:
                   proofFile.type,
               }
@@ -678,7 +847,9 @@ function App() {
             `Screenshot upload failed: ${uploadError.message}`
           )
 
-          setMessageType('error')
+          setMessageType(
+            'error'
+          )
 
           return
         }
@@ -772,7 +943,9 @@ function App() {
           )
         }
 
-        setMessageType('error')
+        setMessageType(
+          'error'
+        )
 
         return
       }
@@ -788,7 +961,9 @@ function App() {
         `Success! Your proof for "${title}" has been submitted and is waiting for review.`
       )
 
-      setMessageType('success')
+      setMessageType(
+        'success'
+      )
 
       await loadTasks()
     } catch (err) {
@@ -813,7 +988,9 @@ function App() {
         'Something went wrong while submitting your proof. Please try again.'
       )
 
-      setMessageType('error')
+      setMessageType(
+        'error'
+      )
     } finally {
       setSubmitting(false)
     }
@@ -828,7 +1005,6 @@ function App() {
   ) => {
     setActivePage(page)
     setMenuOpen(false)
-
     setMessage('')
 
     window.scrollTo({
@@ -861,8 +1037,10 @@ function App() {
     ).toLocaleString(
       'en-NG',
       {
-        dateStyle: 'medium',
-        timeStyle: 'short',
+        dateStyle:
+          'medium',
+        timeStyle:
+          'short',
       }
     )
   }
@@ -1716,7 +1894,7 @@ function App() {
   )
 
   // -----------------------------
-  // DEPOSIT
+  // DEPOSIT PAGE
   // -----------------------------
 
   const depositPage = (
@@ -1831,7 +2009,7 @@ function App() {
   )
 
   // -----------------------------
-  // WITHDRAWAL
+  // WITHDRAWAL PAGE
   // -----------------------------
 
   const withdrawPage = (
@@ -2420,425 +2598,4 @@ function App() {
             ☰
           </button>
         </div>
-      </header>
-
-      {menuOpen && (
-        <div className="menu-panel">
-          <div className="menu-panel-title">
-            Navigation
-          </div>
-
-          {[
-            'Dashboard',
-            'Tasks',
-            'Referral',
-            'Deposit',
-            'Withdraw',
-            'Profile',
-          ].map(
-            (page) => (
-              <button
-                key={page}
-                className={`menu-link ${
-                  activePage ===
-                  page
-                    ? 'active'
-                    : ''
-                }`}
-                onClick={() =>
-                  goTo(page)
-                }
-              >
-                {page}
-              </button>
-            )
-          )}
-
-          <div className="menu-divider" />
-
-          <button
-            className="menu-link logout-link"
-            onClick={
-              handleLogout
-            }
-          >
-            Log Out
-          </button>
-        </div>
-      )}
-
-      <main className="dashboard-container">
-        {pageContent}
-      </main>
-
-      <nav className="bottom-nav">
-        <button
-          className={
-            activePage ===
-            'Dashboard'
-              ? 'active'
-              : ''
-          }
-          onClick={() =>
-            goTo(
-              'Dashboard'
-            )
-          }
-        >
-          <span>
-            ⌂
-          </span>
-          Dashboard
-        </button>
-
-        <button
-          className={
-            activePage ===
-            'Tasks'
-              ? 'active'
-              : ''
-          }
-          onClick={() =>
-            goTo(
-              'Tasks'
-            )
-          }
-        >
-          <span>
-            ✓
-          </span>
-          Tasks
-        </button>
-
-        <button
-          className={
-            activePage ===
-            'Referral'
-              ? 'active'
-              : ''
-          }
-          onClick={() =>
-            goTo(
-              'Referral'
-            )
-          }
-        >
-          <span>
-            ↗
-          </span>
-          Referral
-        </button>
-
-        <button
-          className={
-            activePage ===
-            'Profile'
-              ? 'active'
-              : ''
-          }
-          onClick={() =>
-            goTo(
-              'Profile'
-            )
-          }
-        >
-          <span>
-            ●
-          </span>
-          Profile
-        </button>
-      </nav>
-
-      {/* -----------------------------
-          TASK SUBMISSION MODAL
-      ----------------------------- */}
-
-      {selectedTask && (
-        <div
-          style={{
-            position:
-              'fixed',
-            inset: 0,
-            background:
-              'rgba(23, 32, 51, 0.45)',
-            display:
-              'flex',
-            alignItems:
-              'center',
-            justifyContent:
-              'center',
-            padding:
-              '20px',
-            zIndex: 100,
-            overflowY:
-              'auto',
-          }}
-        >
-          <div
-            style={{
-              width:
-                '100%',
-              maxWidth:
-                '500px',
-              background:
-                'white',
-              borderRadius:
-                '20px',
-              padding:
-                '28px',
-              boxShadow:
-                '0 25px 70px rgba(23, 32, 51, 0.2)',
-              maxHeight:
-                '90vh',
-              overflowY:
-                'auto',
-            }}
-          >
-            <div
-              style={{
-                display:
-                  'flex',
-                justifyContent:
-                  'space-between',
-                alignItems:
-                  'flex-start',
-                gap: '15px',
-              }}
-            >
-              <div>
-                <span className="section-label">
-                  SUBMIT TASK
-                </span>
-
-                <h2
-                  style={{
-                    margin: 0,
-                    fontSize:
-                      '24px',
-                  }}
-                >
-                  {
-                    selectedTask.title
-                  }
-                </h2>
-              </div>
-
-              <button
-                className="outline-button"
-                onClick={
-                  closeTaskSubmission
-                }
-                disabled={
-                  submitting
-                }
-                style={{
-                  padding:
-                    '7px 11px',
-                }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <p
-              style={{
-                color:
-                  '#7b8597',
-                fontSize:
-                  '13px',
-                lineHeight:
-                  1.5,
-                marginTop:
-                  '15px',
-              }}
-            >
-              {
-                selectedTask.description ||
-                'Complete the task and provide proof below.'
-              }
-            </p>
-
-            <div
-              style={{
-                background:
-                  '#eef8f3',
-                color:
-                  '#17734d',
-                padding:
-                  '12px 14px',
-                borderRadius:
-                  '10px',
-                fontWeight:
-                  700,
-                marginBottom:
-                  '18px',
-              }}
-            >
-              Reward:{' '}
-              {formatMoney(
-                selectedTask.reward
-              )}
-            </div>
-
-            <form
-              onSubmit={
-                submitProof
-              }
-            >
-              <label
-                style={{
-                  display:
-                    'block',
-                  marginBottom:
-                    '7px',
-                  fontSize:
-                    '13px',
-                  fontWeight:
-                    700,
-                }}
-              >
-                Upload Screenshot
-              </label>
-
-              <input
-                type="file"
-                accept="image/*"
-                onChange={
-                  handleProofFile
-                }
-                disabled={
-                  submitting
-                }
-                style={{
-                  width:
-                    '100%',
-                  border:
-                    '1px solid #dfe3ea',
-                  borderRadius:
-                    '11px',
-                  padding:
-                    '12px',
-                  marginBottom:
-                    '15px',
-                  background:
-                    '#fafbfc',
-                }}
-              />
-
-              {proofFile && (
-                <div
-                  style={{
-                    background:
-                      '#eef8f3',
-                    color:
-                      '#17734d',
-                    padding:
-                      '10px 12px',
-                    borderRadius:
-                      '10px',
-                    marginBottom:
-                      '15px',
-                    fontSize:
-                      '13px',
-                  }}
-                >
-                  📸 Selected:{' '}
-                  {
-                    proofFile.name
-                  }
-                </div>
-              )}
-
-              <label
-                style={{
-                  display:
-                    'block',
-                  marginBottom:
-                    '7px',
-                  fontSize:
-                    '13px',
-                  fontWeight:
-                    700,
-                }}
-              >
-                Additional Proof
-              </label>
-
-              <textarea
-                value={
-                  proof
-                }
-                onChange={(
-                  e
-                ) =>
-                  setProof(
-                    e.target
-                      .value
-                  )
-                }
-                placeholder="Enter a link, username, description, or other verification details..."
-                disabled={
-                  submitting
-                }
-                rows={5}
-                style={{
-                  width:
-                    '100%',
-                  resize:
-                    'vertical',
-                  border:
-                    '1px solid #dfe3ea',
-                  borderRadius:
-                    '11px',
-                  padding:
-                    '13px 14px',
-                  outline:
-                    'none',
-                  font:
-                    'inherit',
-                  boxSizing:
-                    'border-box',
-                  marginBottom:
-                    '15px',
-                }}
-              />
-
-              <button
-                type="submit"
-                className="primary-button"
-                disabled={
-                  submitting
-                }
-              >
-                {submitting
-                  ? 'Uploading & Submitting...'
-                  : 'Submit Proof'}
-              </button>
-
-              <button
-                type="button"
-                className="outline-button"
-                onClick={
-                  closeTaskSubmission
-                }
-                disabled={
-                  submitting
-                }
-                style={{
-                  width:
-                    '100%',
-                  marginTop:
-                    '10px',
-                }}
-              >
-                Cancel
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-export default App
+    </
