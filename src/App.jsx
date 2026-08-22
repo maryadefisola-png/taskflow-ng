@@ -67,9 +67,6 @@ function App() {
         await loadProfile(currentUser)
         await loadTasks()
         await loadWithdrawalHistory(currentUser.id)
-
-        // Only verify if Paystack returned the user here.
-        await verifyReturnedPayment(currentUser)
       } else {
         setProfile(null)
         setTasks([])
@@ -103,15 +100,13 @@ function App() {
       await loadProfile(currentUser)
       await loadTasks()
       await loadWithdrawalHistory(currentUser.id)
-      await verifyReturnedPayment(currentUser)
+      await verifyReturnedPayment()
     }
 
     setLoading(false)
   }
 
   const loadProfile = async (currentUser) => {
-    if (!currentUser) return
-
     const { data, error: profileError } = await supabase
       .from('profiles')
       .select(
@@ -154,37 +149,14 @@ function App() {
   // PAYSTACK PAYMENT VERIFICATION
   // --------------------------------------------------
 
-  const verifyReturnedPayment = async (currentUser = user) => {
-    const params = new URLSearchParams(window.location.search)
+  const verifyReturnedPayment = async () => {
+    const params = new URLSearchParams(
+      window.location.search
+    )
 
     const reference = params.get('reference')
-    const paymentStatus = params.get('payment')
 
     if (!reference) {
-      return
-    }
-
-    // Paystack may return with just the reference.
-    // We verify the transaction server-side regardless.
-    if (
-      paymentStatus &&
-      paymentStatus !== 'success'
-    ) {
-      window.history.replaceState(
-        {},
-        document.title,
-        window.location.pathname
-      )
-
-      showMessage(
-        'Payment was not completed.',
-        'error'
-      )
-
-      return
-    }
-
-    if (!currentUser) {
       return
     }
 
@@ -194,15 +166,17 @@ function App() {
     )
 
     try {
-      const { data, error: verifyError } =
-        await supabase.functions.invoke(
-          'verify-payment',
-          {
-            body: {
-              reference,
-            },
-          }
-        )
+      const {
+        data,
+        error: verifyError,
+      } = await supabase.functions.invoke(
+        'verify-payment',
+        {
+          body: {
+            reference,
+          },
+        }
+      )
 
       if (verifyError) {
         throw new Error(
@@ -218,7 +192,21 @@ function App() {
         )
       }
 
-      await loadProfile(currentUser)
+      const {
+        data: {
+          user: currentUser,
+        },
+      } = await supabase.auth.getUser()
+
+      if (currentUser) {
+        setUser(currentUser)
+
+        await loadProfile(currentUser)
+
+        await loadWithdrawalHistory(
+          currentUser.id
+        )
+      }
 
       if (data.already_processed) {
         showMessage(
@@ -287,7 +275,9 @@ function App() {
 
     try {
       if (authMode === 'login') {
-        const { error: loginError } =
+        const {
+          error: loginError,
+        } =
           await supabase.auth.signInWithPassword({
             email: cleanEmail,
             password,
@@ -297,7 +287,10 @@ function App() {
           setAuthError(loginError.message)
         }
       } else {
-        const { data, error: signupError } =
+        const {
+          data,
+          error: signupError,
+        } =
           await supabase.auth.signUp({
             email: cleanEmail,
             password,
@@ -309,7 +302,9 @@ function App() {
           })
 
         if (signupError) {
-          setAuthError(signupError.message)
+          setAuthError(
+            signupError.message
+          )
         } else if (data.session) {
           setAuthMessage(
             'Account created successfully.'
@@ -348,13 +343,7 @@ function App() {
   // --------------------------------------------------
 
   const initializeDeposit = async () => {
-    if (!user) {
-      showMessage(
-        'Please log in before making a deposit.',
-        'error'
-      )
-      return
-    }
+    if (!user) return
 
     const amount = Number(depositAmount)
 
@@ -373,12 +362,14 @@ function App() {
     setMessage('')
 
     try {
-      const { data, error: functionError } =
+      const {
+        data,
+        error: functionError,
+      } =
         await supabase.functions.invoke(
           'initialize-payment',
           {
             body: {
-              email: user.email,
               amount,
             },
           }
@@ -386,8 +377,7 @@ function App() {
 
       if (functionError) {
         throw new Error(
-          functionError.message ||
-            'Unable to initialize payment.'
+          functionError.message
         )
       }
 
@@ -414,7 +404,7 @@ function App() {
           'Unable to start the deposit. Please try again.',
         'error'
       )
-
+    } finally {
       setDepositLoading(false)
     }
   }
@@ -450,12 +440,8 @@ function App() {
         withdrawalError.message
       )
 
-      showMessage(
-        withdrawalError.message,
-        'error'
-      )
-
       setWithdrawalHistory([])
+
       return
     }
 
@@ -463,7 +449,7 @@ function App() {
   }
 
   // --------------------------------------------------
-  // REAL DATABASE WITHDRAWAL REQUEST
+  // REAL WITHDRAWAL
   // --------------------------------------------------
 
   const submitTestWithdrawal = async (
@@ -479,9 +465,8 @@ function App() {
       return
     }
 
-    const amount = Number(
-      withdrawalAmount
-    )
+    const amount =
+      Number(withdrawalAmount)
 
     const cleanBankName =
       bankName.trim()
@@ -538,20 +523,21 @@ function App() {
       const {
         data,
         error: withdrawalError,
-      } = await supabase.rpc(
-        'request_withdrawal',
-        {
-          p_balance_type:
-            withdrawalBalanceType,
-          p_amount: amount,
-          p_bank_name:
-            cleanBankName,
-          p_account_name:
-            cleanAccountName,
-          p_account_number:
-            cleanAccountNumber,
-        }
-      )
+      } =
+        await supabase.rpc(
+          'request_withdrawal',
+          {
+            p_balance_type:
+              withdrawalBalanceType,
+            p_amount: amount,
+            p_bank_name:
+              cleanBankName,
+            p_account_name:
+              cleanAccountName,
+            p_account_number:
+              cleanAccountNumber,
+          }
+        )
 
       if (withdrawalError) {
         throw new Error(
@@ -566,16 +552,20 @@ function App() {
         )
       }
 
+      // Refresh profile because
+      // request_withdrawal deducts
+      // the selected balance.
+      await loadProfile(user)
+
+      // Refresh real withdrawal history.
+      await loadWithdrawalHistory(
+        user.id
+      )
+
       setWithdrawalAmount('')
       setBankName('')
       setAccountName('')
       setAccountNumber('')
-
-      await loadProfile(user)
-
-      await loadWithdrawalHistory(
-        user.id
-      )
 
       showMessage(
         `Withdrawal request created successfully. Reference: ${
@@ -643,6 +633,7 @@ function App() {
 
       event.target.value = ''
       setProofFile(null)
+
       return
     }
 
@@ -657,6 +648,7 @@ function App() {
 
       event.target.value = ''
       setProofFile(null)
+
       return
     }
 
@@ -693,11 +685,8 @@ function App() {
     setSubmitting(true)
     setMessage('')
 
-    let uploadedFilePath =
-      null
-
-    let screenshotUrl =
-      null
+    let uploadedFilePath = null
+    let screenshotUrl = null
 
     try {
       if (proofFile) {
@@ -723,9 +712,7 @@ function App() {
           error: uploadError,
         } =
           await supabase.storage
-            .from(
-              'task-proofs'
-            )
+            .from('task-proofs')
             .upload(
               filePath,
               proofFile,
@@ -759,7 +746,8 @@ function App() {
             )
 
         screenshotUrl =
-          publicUrlData?.publicUrl ||
+          publicUrlData
+            ?.publicUrl ||
           null
       }
 
@@ -795,9 +783,7 @@ function App() {
               ),
           })
 
-      if (
-        submissionError
-      ) {
+      if (submissionError) {
         if (
           uploadedFilePath
         ) {
@@ -1470,7 +1456,10 @@ function App() {
         ) : (
           <div className="mini-task-list">
             {tasks
-              .slice(0, 3)
+              .slice(
+                0,
+                3
+              )
               .map(
                 (
                   task,
@@ -1599,9 +1588,7 @@ function App() {
                 </div>
 
                 <h3>
-                  {
-                    task.title
-                  }
+                  {task.title}
                 </h3>
 
                 <p>
@@ -1788,9 +1775,12 @@ function App() {
             value={
               depositAmount
             }
-            onChange={(e) =>
+            onChange={(
+              e
+            ) =>
               setDepositAmount(
-                e.target.value
+                e.target
+                  .value
               )
             }
             placeholder="Enter amount"
@@ -1861,7 +1851,7 @@ function App() {
 
         <br />
 
-        Withdrawal requests are currently recorded in the database for testing. They do not automatically send real money through Paystack.
+        Withdrawal requests are recorded in your database and deducted from your selected balance. No real bank transfer is made yet.
       </div>
 
       <div className="withdraw-choice-grid">
@@ -1960,7 +1950,9 @@ function App() {
               value={
                 withdrawalAmount
               }
-              onChange={(e) =>
+              onChange={(
+                e
+              ) =>
                 setWithdrawalAmount(
                   e.target
                     .value
@@ -1987,7 +1979,9 @@ function App() {
               value={
                 bankName
               }
-              onChange={(e) =>
+              onChange={(
+                e
+              ) =>
                 setBankName(
                   e.target
                     .value
@@ -2010,7 +2004,9 @@ function App() {
               value={
                 accountName
               }
-              onChange={(e) =>
+              onChange={(
+                e
+              ) =>
                 setAccountName(
                   e.target
                     .value
@@ -2035,7 +2031,9 @@ function App() {
               value={
                 accountNumber
               }
-              onChange={(e) =>
+              onChange={(
+                e
+              ) =>
                 setAccountNumber(
                   e.target
                     .value
@@ -2125,17 +2123,11 @@ function App() {
                     </strong>
 
                     <span>
-                      {
-                        withdrawal.balance_type
-                      }{' '}
+                      {withdrawal.balance_type}{' '}
                       •{' '}
-                      {
-                        withdrawal.bank_name
-                      }
+                      {withdrawal.bank_name}
                       <br />
-                      {
-                        withdrawal.account_number
-                      }
+                      {withdrawal.account_number}
                       <br />
                       {withdrawal.payment_reference ||
                         withdrawal.id}
@@ -2313,9 +2305,7 @@ function App() {
           <button
             className="brand-button"
             onClick={() =>
-              goTo(
-                'Dashboard'
-              )
+              goTo('Dashboard')
             }
           >
             <div className="tf-logo small">
@@ -2338,9 +2328,7 @@ function App() {
           <button
             className="profile-button"
             onClick={() =>
-              goTo(
-                'Profile'
-              )
+              goTo('Profile')
             }
           >
             <div className="avatar">
@@ -2395,7 +2383,10 @@ function App() {
                 )
               }
             >
-              <span>⌂</span>
+              <span>
+                ⌂
+              </span>
+
               Dashboard
             </button>
 
@@ -2410,7 +2401,10 @@ function App() {
                 goTo('Tasks')
               }
             >
-              <span>✓</span>
+              <span>
+                ✓
+              </span>
+
               Tasks
             </button>
 
@@ -2427,7 +2421,10 @@ function App() {
                 )
               }
             >
-              <span>↗</span>
+              <span>
+                ↗
+              </span>
+
               Refer & Earn
             </button>
 
@@ -2444,7 +2441,10 @@ function App() {
                 )
               }
             >
-              <span>+</span>
+              <span>
+                +
+              </span>
+
               Deposit
             </button>
 
@@ -2461,7 +2461,10 @@ function App() {
                 )
               }
             >
-              <span>↓</span>
+              <span>
+                ↓
+              </span>
+
               Withdraw
             </button>
           </nav>
@@ -2480,7 +2483,10 @@ function App() {
                 )
               }
             >
-              <span>●</span>
+              <span>
+                ●
+              </span>
+
               My Profile
             </button>
 
@@ -2490,7 +2496,10 @@ function App() {
                 handleLogout
               }
             >
-              <span>↪</span>
+              <span>
+                ↪
+              </span>
+
               Log Out
             </button>
           </div>
@@ -2610,7 +2619,9 @@ function App() {
                 </label>
 
                 <textarea
-                  value={proof}
+                  value={
+                    proof
+                  }
                   onChange={(
                     e
                   ) =>
