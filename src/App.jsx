@@ -66,7 +66,7 @@ function App() {
       if (currentUser) {
         await loadProfile(currentUser)
         await loadTasks()
-        await loadWithdrawalHistory(currentUser.id)
+        loadWithdrawalHistory(currentUser.id)
       } else {
         setProfile(null)
         setTasks([])
@@ -99,7 +99,9 @@ function App() {
     if (currentUser) {
       await loadProfile(currentUser)
       await loadTasks()
-      await loadWithdrawalHistory(currentUser.id)
+      loadWithdrawalHistory(currentUser.id)
+
+      // Check whether the user has just returned from Paystack.
       await verifyReturnedPayment()
     }
 
@@ -154,7 +156,11 @@ function App() {
       window.location.search
     )
 
-    const reference = params.get('reference')
+    // Paystack normally returns "reference".
+    // trxref is supported as a fallback.
+    const reference =
+      params.get('reference') ||
+      params.get('trxref')
 
     if (!reference) {
       return
@@ -180,8 +186,7 @@ function App() {
 
       if (verifyError) {
         throw new Error(
-          verifyError.message ||
-            'Payment verification failed.'
+          verifyError.message
         )
       }
 
@@ -192,6 +197,8 @@ function App() {
         )
       }
 
+      // Refresh profile so the newly credited
+      // Task Balance appears immediately.
       const {
         data: {
           user: currentUser,
@@ -199,13 +206,7 @@ function App() {
       } = await supabase.auth.getUser()
 
       if (currentUser) {
-        setUser(currentUser)
-
         await loadProfile(currentUser)
-
-        await loadWithdrawalHistory(
-          currentUser.id
-        )
       }
 
       if (data.already_processed) {
@@ -222,6 +223,8 @@ function App() {
         )
       }
 
+      // Remove Paystack parameters from the URL
+      // after verification.
       window.history.replaceState(
         {},
         document.title,
@@ -262,22 +265,15 @@ function App() {
       return
     }
 
-    if (
-      authMode === 'signup' &&
-      !fullName.trim()
-    ) {
-      setAuthError(
-        'Please enter your full name.'
-      )
+    if (authMode === 'signup' && !fullName.trim()) {
+      setAuthError('Please enter your full name.')
       setAuthLoading(false)
       return
     }
 
     try {
       if (authMode === 'login') {
-        const {
-          error: loginError,
-        } =
+        const { error: loginError } =
           await supabase.auth.signInWithPassword({
             email: cleanEmail,
             password,
@@ -287,10 +283,7 @@ function App() {
           setAuthError(loginError.message)
         }
       } else {
-        const {
-          data,
-          error: signupError,
-        } =
+        const { data, error: signupError } =
           await supabase.auth.signUp({
             email: cleanEmail,
             password,
@@ -302,9 +295,7 @@ function App() {
           })
 
         if (signupError) {
-          setAuthError(
-            signupError.message
-          )
+          setAuthError(signupError.message)
         } else if (data.session) {
           setAuthMessage(
             'Account created successfully.'
@@ -313,7 +304,6 @@ function App() {
           setAuthMessage(
             'Account created. Please check your email to confirm your account before logging in.'
           )
-
           setAuthMode('login')
         }
       }
@@ -370,6 +360,7 @@ function App() {
           'initialize-payment',
           {
             body: {
+              email: user.email,
               amount,
             },
           }
@@ -413,48 +404,60 @@ function App() {
   // WITHDRAWAL HISTORY
   // --------------------------------------------------
 
-  const loadWithdrawalHistory = async (
-    userId
-  ) => {
-    if (!userId) {
-      setWithdrawalHistory([])
-      return
-    }
+  const withdrawalStorageKey = (userId) =>
+    `taskflow_test_withdrawals_${userId}`
 
-    const {
-      data,
-      error: withdrawalError,
-    } = await supabase
-      .from('withdrawals')
-      .select(
-        'id, user_id, amount, bank_name, account_number, account_name, payment_reference, status, created_at, balance_type'
+  const loadWithdrawalHistory = (userId) => {
+    try {
+      const saved = localStorage.getItem(
+        withdrawalStorageKey(userId)
       )
-      .eq('user_id', userId)
-      .order('created_at', {
-        ascending: false,
-      })
 
-    if (withdrawalError) {
+      if (!saved) {
+        setWithdrawalHistory([])
+        return
+      }
+
+      const parsed = JSON.parse(saved)
+
+      setWithdrawalHistory(
+        Array.isArray(parsed) ? parsed : []
+      )
+    } catch (err) {
       console.error(
         'Withdrawal history error:',
-        withdrawalError.message
+        err
       )
-
       setWithdrawalHistory([])
-
-      return
     }
+  }
 
-    setWithdrawalHistory(data || [])
+  const saveWithdrawalHistory = (
+    userId,
+    history
+  ) => {
+    localStorage.setItem(
+      withdrawalStorageKey(userId),
+      JSON.stringify(history)
+    )
+
+    setWithdrawalHistory(history)
+  }
+
+  const generateWithdrawalReference = () => {
+    const random = Math.random()
+      .toString(36)
+      .substring(2, 9)
+      .toUpperCase()
+
+    return `TFW-TEST-${Date.now()}-${random}`
   }
 
   // --------------------------------------------------
-  // REAL WITHDRAWAL
+  // TEST WITHDRAWAL
   // --------------------------------------------------
 
-  const submitTestWithdrawal = async (
-    event
-  ) => {
+  const submitTestWithdrawal = async (event) => {
     event.preventDefault()
 
     if (!user) {
@@ -465,8 +468,14 @@ function App() {
       return
     }
 
-    const amount =
-      Number(withdrawalAmount)
+    const amount = Number(withdrawalAmount)
+
+    const selectedBalance =
+      withdrawalBalanceType === 'task'
+        ? Number(profile?.task_balance ?? 0)
+        : Number(
+            profile?.affiliate_balance ?? 0
+          )
 
     const cleanBankName =
       bankName.trim()
@@ -483,6 +492,18 @@ function App() {
     ) {
       showMessage(
         'Minimum withdrawal is ₦1,000.',
+        'error'
+      )
+      return
+    }
+
+    if (amount > selectedBalance) {
+      showMessage(
+        `Insufficient ${
+          withdrawalBalanceType === 'task'
+            ? 'Task'
+            : 'Affiliate'
+        } Balance.`,
         'error'
       )
       return
@@ -517,49 +538,39 @@ function App() {
     }
 
     setWithdrawalLoading(true)
-    setMessage('')
 
     try {
-      const {
-        data,
-        error: withdrawalError,
-      } =
-        await supabase.rpc(
-          'request_withdrawal',
-          {
-            p_balance_type:
-              withdrawalBalanceType,
-            p_amount: amount,
-            p_bank_name:
-              cleanBankName,
-            p_account_name:
-              cleanAccountName,
-            p_account_number:
-              cleanAccountNumber,
-          }
-        )
+      const reference =
+        generateWithdrawalReference()
 
-      if (withdrawalError) {
-        throw new Error(
-          withdrawalError.message ||
-            'Unable to create withdrawal request.'
-        )
+      const newWithdrawal = {
+        id: crypto?.randomUUID
+          ? crypto.randomUUID()
+          : `${Date.now()}`,
+        user_id: user.id,
+        amount,
+        bank_name: cleanBankName,
+        account_name: cleanAccountName,
+        account_number:
+          cleanAccountNumber,
+        payment_reference:
+          reference,
+        status: 'pending',
+        balance_type:
+          withdrawalBalanceType,
+        created_at:
+          new Date().toISOString(),
+        test_mode: true,
       }
 
-      if (!data) {
-        throw new Error(
-          'Withdrawal request was not created.'
-        )
-      }
+      const updatedHistory = [
+        newWithdrawal,
+        ...withdrawalHistory,
+      ]
 
-      // Refresh profile because
-      // request_withdrawal deducts
-      // the selected balance.
-      await loadProfile(user)
-
-      // Refresh real withdrawal history.
-      await loadWithdrawalHistory(
-        user.id
+      saveWithdrawalHistory(
+        user.id,
+        updatedHistory
       )
 
       setWithdrawalAmount('')
@@ -568,10 +579,7 @@ function App() {
       setAccountNumber('')
 
       showMessage(
-        `Withdrawal request created successfully. Reference: ${
-          data.payment_reference ||
-          data.id
-        }`,
+        `Withdrawal request created successfully. Reference: ${reference}`,
         'success'
       )
     } catch (err) {
@@ -581,8 +589,7 @@ function App() {
       )
 
       showMessage(
-        err?.message ||
-          'Unable to create the withdrawal request.',
+        'Unable to create the withdrawal request.',
         'error'
       )
     } finally {
@@ -594,9 +601,7 @@ function App() {
   // TASK SUBMISSION
   // --------------------------------------------------
 
-  const openTaskSubmission = (
-    task
-  ) => {
+  const openTaskSubmission = (task) => {
     setMessage('')
     setProof('')
     setProofFile(null)
@@ -610,9 +615,7 @@ function App() {
     setSubmitting(false)
   }
 
-  const handleProofFile = (
-    event
-  ) => {
+  const handleProofFile = (event) => {
     const file =
       event.target.files?.[0]
 
@@ -630,10 +633,8 @@ function App() {
         'Please select an image screenshot.',
         'error'
       )
-
       event.target.value = ''
       setProofFile(null)
-
       return
     }
 
@@ -645,10 +646,8 @@ function App() {
         'Screenshot must be smaller than 5MB.',
         'error'
       )
-
       event.target.value = ''
       setProofFile(null)
-
       return
     }
 
@@ -656,17 +655,10 @@ function App() {
     setProofFile(file)
   }
 
-  const submitProof = async (
-    event
-  ) => {
+  const submitProof = async (event) => {
     event.preventDefault()
 
-    if (
-      !selectedTask ||
-      !user
-    ) {
-      return
-    }
+    if (!selectedTask || !user) return
 
     const cleanProof =
       proof.trim()
@@ -700,10 +692,7 @@ function App() {
         const safeFileName =
           `${Date.now()}-${Math.random()
             .toString(36)
-            .substring(
-              2,
-              10
-            )}.${fileExtension}`
+            .substring(2, 10)}.${fileExtension}`
 
         const filePath =
           `${user.id}/${safeFileName}`
@@ -746,8 +735,7 @@ function App() {
             )
 
         screenshotUrl =
-          publicUrlData
-            ?.publicUrl ||
+          publicUrlData?.publicUrl ||
           null
       }
 
@@ -755,10 +743,9 @@ function App() {
         cleanProof
 
       if (screenshotUrl) {
-        finalProof +=
-          finalProof
-            ? `\n\nScreenshot:\n${screenshotUrl}`
-            : `Screenshot:\n${screenshotUrl}`
+        finalProof += finalProof
+          ? `\n\nScreenshot:\n${screenshotUrl}`
+          : `Screenshot:\n${screenshotUrl}`
       }
 
       const {
@@ -769,24 +756,18 @@ function App() {
             'task_submissions'
           )
           .insert({
-            user_id:
-              user.id,
+            user_id: user.id,
             task_id:
               selectedTask.id,
-            proof:
-              finalProof,
-            status:
-              'Pending',
-            reward:
-              Number(
-                selectedTask.reward
-              ),
+            proof: finalProof,
+            status: 'Pending',
+            reward: Number(
+              selectedTask.reward
+            ),
           })
 
       if (submissionError) {
-        if (
-          uploadedFilePath
-        ) {
+        if (uploadedFilePath) {
           await supabase.storage
             .from(
               'task-proofs'
@@ -827,9 +808,7 @@ function App() {
         err
       )
 
-      if (
-        uploadedFilePath
-      ) {
+      if (uploadedFilePath) {
         await supabase.storage
           .from(
             'task-proofs'
@@ -965,22 +944,19 @@ function App() {
 
           <div className="auth-heading">
             <span className="section-label">
-              {authMode ===
-              'login'
+              {authMode === 'login'
                 ? 'WELCOME BACK'
                 : 'GET STARTED'}
             </span>
 
             <h2>
-              {authMode ===
-              'login'
+              {authMode === 'login'
                 ? 'Welcome back'
                 : 'Create your account'}
             </h2>
 
             <p>
-              {authMode ===
-              'login'
+              {authMode === 'login'
                 ? 'Log in to access your dashboard.'
                 : 'Create your TaskFlow NG account.'}
             </p>
@@ -999,12 +975,9 @@ function App() {
           )}
 
           <form
-            onSubmit={
-              handleAuth
-            }
+            onSubmit={handleAuth}
           >
-            {authMode ===
-              'signup' && (
+            {authMode === 'signup' && (
               <div className="form-group">
                 <label>
                   Full Name
@@ -1012,15 +985,10 @@ function App() {
 
                 <input
                   type="text"
-                  value={
-                    fullName
-                  }
-                  onChange={(
-                    e
-                  ) =>
+                  value={fullName}
+                  onChange={(e) =>
                     setFullName(
-                      e.target
-                        .value
+                      e.target.value
                     )
                   }
                   placeholder="Enter your full name"
@@ -1040,12 +1008,9 @@ function App() {
               <input
                 type="email"
                 value={email}
-                onChange={(
-                  e
-                ) =>
+                onChange={(e) =>
                   setEmail(
-                    e.target
-                      .value
+                    e.target.value
                   )
                 }
                 placeholder="Enter your email"
@@ -1064,15 +1029,10 @@ function App() {
 
               <input
                 type="password"
-                value={
-                  password
-                }
-                onChange={(
-                  e
-                ) =>
+                value={password}
+                onChange={(e) =>
                   setPassword(
-                    e.target
-                      .value
+                    e.target.value
                   )
                 }
                 placeholder="Enter your password"
@@ -1123,14 +1083,8 @@ function App() {
                     ? 'signup'
                     : 'login'
                 )
-
-                setAuthError(
-                  ''
-                )
-
-                setAuthMessage(
-                  ''
-                )
+                setAuthError('')
+                setAuthMessage('')
               }}
               disabled={
                 authLoading
@@ -1206,9 +1160,7 @@ function App() {
     'TaskFlow User'
 
   const firstName =
-    displayName.split(
-      ' '
-    )[0]
+    displayName.split(' ')[0]
 
   const initials =
     getInitials(
@@ -1338,7 +1290,8 @@ function App() {
               </strong>
 
               <span>
-                Earn rewards by completing available tasks.
+                Earn rewards by completing available
+                tasks.
               </span>
             </div>
 
@@ -1361,7 +1314,8 @@ function App() {
               </strong>
 
               <span>
-                Invite people and grow your affiliate earnings.
+                Invite people and grow your affiliate
+                earnings.
               </span>
             </div>
 
@@ -1439,27 +1393,25 @@ function App() {
             </strong>
 
             <span>
-              Please wait while we load available tasks.
+              Please wait while we load available
+              tasks.
             </span>
           </div>
-        ) : tasks.length ===
-          0 ? (
+        ) : tasks.length === 0 ? (
           <div className="empty-card">
             <strong>
               No tasks available
             </strong>
 
             <span>
-              New tasks will appear here when they are published.
+              New tasks will appear here when they
+              are published.
             </span>
           </div>
         ) : (
           <div className="mini-task-list">
             {tasks
-              .slice(
-                0,
-                3
-              )
+              .slice(0, 3)
               .map(
                 (
                   task,
@@ -1524,7 +1476,8 @@ function App() {
         </h2>
 
         <p>
-          Complete tasks and submit proof to earn rewards.
+          Complete tasks and submit proof to earn
+          rewards.
         </p>
       </div>
 
@@ -1548,18 +1501,19 @@ function App() {
           </strong>
 
           <span>
-            Please wait while we load available tasks.
+            Please wait while we load available
+            tasks.
           </span>
         </div>
-      ) : tasks.length ===
-        0 ? (
+      ) : tasks.length === 0 ? (
         <div className="empty-card large">
           <strong>
             No tasks available
           </strong>
 
           <span>
-            Check back later for new earning opportunities.
+            Check back later for new earning
+            opportunities.
           </span>
         </div>
       ) : (
@@ -1644,7 +1598,8 @@ function App() {
         </h2>
 
         <p>
-          Invite friends and grow your affiliate earnings.
+          Invite friends and grow your affiliate
+          earnings.
         </p>
       </div>
 
@@ -1662,7 +1617,9 @@ function App() {
         </h2>
 
         <p>
-          Share your referral code with friends who join TaskFlow NG. Your affiliate earnings will appear in your Affiliate Balance.
+          Share your referral code with friends who
+          join TaskFlow NG. Your affiliate earnings
+          will appear in your Affiliate Balance.
         </p>
 
         <div className="referral-code-box">
@@ -1775,12 +1732,9 @@ function App() {
             value={
               depositAmount
             }
-            onChange={(
-              e
-            ) =>
+            onChange={(e) =>
               setDepositAmount(
-                e.target
-                  .value
+                e.target.value
               )
             }
             placeholder="Enter amount"
@@ -1840,7 +1794,8 @@ function App() {
         </h2>
 
         <p>
-          Choose a balance and submit your withdrawal request.
+          Choose a balance and submit your withdrawal
+          request.
         </p>
       </div>
 
@@ -1851,7 +1806,9 @@ function App() {
 
         <br />
 
-        Withdrawal requests are recorded in your database and deducted from your selected balance. No real bank transfer is made yet.
+        This withdrawal form is currently for design
+        and testing. It does not send real money or
+        change your actual balance.
       </div>
 
       <div className="withdraw-choice-grid">
@@ -1950,12 +1907,9 @@ function App() {
               value={
                 withdrawalAmount
               }
-              onChange={(
-                e
-              ) =>
+              onChange={(e) =>
                 setWithdrawalAmount(
-                  e.target
-                    .value
+                  e.target.value
                 )
               }
               placeholder="Enter amount"
@@ -1979,12 +1933,9 @@ function App() {
               value={
                 bankName
               }
-              onChange={(
-                e
-              ) =>
+              onChange={(e) =>
                 setBankName(
-                  e.target
-                    .value
+                  e.target.value
                 )
               }
               placeholder="Enter bank name"
@@ -2004,12 +1955,9 @@ function App() {
               value={
                 accountName
               }
-              onChange={(
-                e
-              ) =>
+              onChange={(e) =>
                 setAccountName(
-                  e.target
-                    .value
+                  e.target.value
                 )
               }
               placeholder="Enter account name"
@@ -2031,12 +1979,9 @@ function App() {
               value={
                 accountNumber
               }
-              onChange={(
-                e
-              ) =>
+              onChange={(e) =>
                 setAccountNumber(
-                  e.target
-                    .value
+                  e.target.value
                     .replace(
                       /\D/g,
                       ''
@@ -2096,7 +2041,8 @@ function App() {
             </strong>
 
             <span>
-              Your withdrawal requests will appear here.
+              Your withdrawal requests will appear
+              here.
             </span>
           </div>
         ) : (
@@ -2123,14 +2069,21 @@ function App() {
                     </strong>
 
                     <span>
-                      {withdrawal.balance_type}{' '}
+                      {
+                        withdrawal.balance_type
+                      }{' '}
                       •{' '}
-                      {withdrawal.bank_name}
+                      {
+                        withdrawal.bank_name
+                      }
                       <br />
-                      {withdrawal.account_number}
+                      {
+                        withdrawal.account_number
+                      }
                       <br />
-                      {withdrawal.payment_reference ||
-                        withdrawal.id}
+                      {
+                        withdrawal.payment_reference
+                      }
                       <br />
                       {formatDate(
                         withdrawal.created_at
@@ -2305,7 +2258,9 @@ function App() {
           <button
             className="brand-button"
             onClick={() =>
-              goTo('Dashboard')
+              goTo(
+                'Dashboard'
+              )
             }
           >
             <div className="tf-logo small">
@@ -2328,7 +2283,9 @@ function App() {
           <button
             className="profile-button"
             onClick={() =>
-              goTo('Profile')
+              goTo(
+                'Profile'
+              )
             }
           >
             <div className="avatar">
@@ -2386,7 +2343,6 @@ function App() {
               <span>
                 ⌂
               </span>
-
               Dashboard
             </button>
 
@@ -2398,13 +2354,14 @@ function App() {
                   : 'nav-item'
               }
               onClick={() =>
-                goTo('Tasks')
+                goTo(
+                  'Tasks'
+                )
               }
             >
               <span>
                 ✓
               </span>
-
               Tasks
             </button>
 
@@ -2424,7 +2381,6 @@ function App() {
               <span>
                 ↗
               </span>
-
               Refer & Earn
             </button>
 
@@ -2444,7 +2400,6 @@ function App() {
               <span>
                 +
               </span>
-
               Deposit
             </button>
 
@@ -2464,7 +2419,6 @@ function App() {
               <span>
                 ↓
               </span>
-
               Withdraw
             </button>
           </nav>
@@ -2486,7 +2440,6 @@ function App() {
               <span>
                 ●
               </span>
-
               My Profile
             </button>
 
@@ -2499,7 +2452,6 @@ function App() {
               <span>
                 ↪
               </span>
-
               Log Out
             </button>
           </div>
@@ -2622,12 +2574,9 @@ function App() {
                   value={
                     proof
                   }
-                  onChange={(
-                    e
-                  ) =>
+                  onChange={(e) =>
                     setProof(
-                      e.target
-                        .value
+                      e.target.value
                     )
                   }
                   placeholder="Enter your proof or explain how you completed the task..."
