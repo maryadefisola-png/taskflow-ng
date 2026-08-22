@@ -58,23 +58,25 @@ function App() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      const currentUser = session?.user ?? null
+    } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        const currentUser = session?.user ?? null
 
-      setUser(currentUser)
+        setUser(currentUser)
 
-      if (currentUser) {
-        await loadProfile(currentUser)
-        await loadTasks()
-        loadWithdrawalHistory(currentUser.id)
-      } else {
-        setProfile(null)
-        setTasks([])
-        setWithdrawalHistory([])
+        if (currentUser) {
+          await loadProfile(currentUser)
+          await loadTasks()
+          loadWithdrawalHistory(currentUser.id)
+        } else {
+          setProfile(null)
+          setTasks([])
+          setWithdrawalHistory([])
+        }
+
+        setLoading(false)
       }
-
-      setLoading(false)
-    })
+    )
 
     return () => subscription.unsubscribe()
   }, [])
@@ -100,9 +102,6 @@ function App() {
       await loadProfile(currentUser)
       await loadTasks()
       loadWithdrawalHistory(currentUser.id)
-
-      // Check whether the user has just returned from Paystack.
-      await verifyReturnedPayment()
     }
 
     setLoading(false)
@@ -118,7 +117,10 @@ function App() {
       .single()
 
     if (profileError) {
-      console.error('Profile error:', profileError.message)
+      console.error(
+        'Profile error:',
+        profileError.message
+      )
       setProfile(null)
       setError(profileError.message)
     } else {
@@ -135,11 +137,19 @@ function App() {
         'id, title, description, reward, task_type, verification_method, max_completions, starts_at, ends_at'
       )
       .eq('is_active', true)
-      .order('created_at', { ascending: false })
+      .order('created_at', {
+        ascending: false,
+      })
 
     if (tasksError) {
-      console.error('Tasks error:', tasksError.message)
-      showMessage(tasksError.message, 'error')
+      console.error(
+        'Tasks error:',
+        tasksError.message
+      )
+      showMessage(
+        tasksError.message,
+        'error'
+      )
     } else {
       setTasks(data || [])
     }
@@ -156,13 +166,24 @@ function App() {
       window.location.search
     )
 
-    // Paystack normally returns "reference".
-    // trxref is supported as a fallback.
-    const reference =
-      params.get('reference') ||
-      params.get('trxref')
+    const reference = params.get('reference')
+    const paymentStatus = params.get('payment')
 
     if (!reference) {
+      return
+    }
+
+    // Paystack can return with a reference even when
+    // the payment query parameter is absent.
+    //
+    // We therefore allow verification whenever a
+    // reference exists, but the server still performs
+    // the real Paystack verification before crediting.
+
+    if (
+      paymentStatus &&
+      paymentStatus !== 'success'
+    ) {
       return
     }
 
@@ -173,7 +194,7 @@ function App() {
 
     try {
       const {
-        data,
+        data: verifyData,
         error: verifyError,
       } = await supabase.functions.invoke(
         'verify-payment',
@@ -185,46 +206,53 @@ function App() {
       )
 
       if (verifyError) {
-        throw new Error(
-          verifyError.message
+        console.error(
+          'Verify function error:',
+          verifyError
         )
-      }
 
-      if (!data?.status) {
         throw new Error(
-          data?.message ||
+          verifyError.message ||
             'Payment verification failed.'
         )
       }
 
-      // Refresh profile so the newly credited
-      // Task Balance appears immediately.
+      console.log(
+        'VERIFY PAYMENT RESPONSE:',
+        verifyData
+      )
+
+      if (!verifyData?.status) {
+        throw new Error(
+          verifyData?.message ||
+            'Payment verification failed.'
+        )
+      }
+
       const {
-        data: {
-          user: currentUser,
-        },
+        data: { user: currentUser },
       } = await supabase.auth.getUser()
 
       if (currentUser) {
         await loadProfile(currentUser)
       }
 
-      if (data.already_processed) {
+      if (verifyData.already_processed) {
         showMessage(
-          'This payment has already been credited.',
+          `Payment ${formatMoney(
+            verifyData.amount
+          )} was already credited.`,
           'success'
         )
       } else {
         showMessage(
           `Payment successful! ${formatMoney(
-            data.amount
+            verifyData.amount
           )} has been added to your Task Balance.`,
           'success'
         )
       }
 
-      // Remove Paystack parameters from the URL
-      // after verification.
       window.history.replaceState(
         {},
         document.title,
@@ -255,7 +283,9 @@ function App() {
     setAuthError('')
     setAuthMessage('')
 
-    const cleanEmail = email.trim().toLowerCase()
+    const cleanEmail = email
+      .trim()
+      .toLowerCase()
 
     if (!cleanEmail || !password) {
       setAuthError(
@@ -265,8 +295,13 @@ function App() {
       return
     }
 
-    if (authMode === 'signup' && !fullName.trim()) {
-      setAuthError('Please enter your full name.')
+    if (
+      authMode === 'signup' &&
+      !fullName.trim()
+    ) {
+      setAuthError(
+        'Please enter your full name.'
+      )
       setAuthLoading(false)
       return
     }
@@ -274,16 +309,21 @@ function App() {
     try {
       if (authMode === 'login') {
         const { error: loginError } =
-          await supabase.auth.signInWithPassword({
-            email: cleanEmail,
-            password,
-          })
+          await supabase.auth.signInWithPassword(
+            {
+              email: cleanEmail,
+              password,
+            }
+          )
 
         if (loginError) {
           setAuthError(loginError.message)
         }
       } else {
-        const { data, error: signupError } =
+        const {
+          data,
+          error: signupError,
+        } =
           await supabase.auth.signUp({
             email: cleanEmail,
             password,
@@ -295,7 +335,9 @@ function App() {
           })
 
         if (signupError) {
-          setAuthError(signupError.message)
+          setAuthError(
+            signupError.message
+          )
         } else if (data.session) {
           setAuthMessage(
             'Account created successfully.'
@@ -333,7 +375,13 @@ function App() {
   // --------------------------------------------------
 
   const initializeDeposit = async () => {
-    if (!user) return
+    if (!user) {
+      showMessage(
+        'Please log in before making a deposit.',
+        'error'
+      )
+      return
+    }
 
     const amount = Number(depositAmount)
 
@@ -407,11 +455,14 @@ function App() {
   const withdrawalStorageKey = (userId) =>
     `taskflow_test_withdrawals_${userId}`
 
-  const loadWithdrawalHistory = (userId) => {
+  const loadWithdrawalHistory = (
+    userId
+  ) => {
     try {
-      const saved = localStorage.getItem(
-        withdrawalStorageKey(userId)
-      )
+      const saved =
+        localStorage.getItem(
+          withdrawalStorageKey(userId)
+        )
 
       if (!saved) {
         setWithdrawalHistory([])
@@ -421,7 +472,9 @@ function App() {
       const parsed = JSON.parse(saved)
 
       setWithdrawalHistory(
-        Array.isArray(parsed) ? parsed : []
+        Array.isArray(parsed)
+          ? parsed
+          : []
       )
     } catch (err) {
       console.error(
@@ -444,20 +497,23 @@ function App() {
     setWithdrawalHistory(history)
   }
 
-  const generateWithdrawalReference = () => {
-    const random = Math.random()
-      .toString(36)
-      .substring(2, 9)
-      .toUpperCase()
+  const generateWithdrawalReference =
+    () => {
+      const random = Math.random()
+        .toString(36)
+        .substring(2, 9)
+        .toUpperCase()
 
-    return `TFW-TEST-${Date.now()}-${random}`
-  }
+      return `TFW-TEST-${Date.now()}-${random}`
+    }
 
   // --------------------------------------------------
   // TEST WITHDRAWAL
   // --------------------------------------------------
 
-  const submitTestWithdrawal = async (event) => {
+  const submitTestWithdrawal = async (
+    event
+  ) => {
     event.preventDefault()
 
     if (!user) {
@@ -468,11 +524,15 @@ function App() {
       return
     }
 
-    const amount = Number(withdrawalAmount)
+    const amount = Number(
+      withdrawalAmount
+    )
 
     const selectedBalance =
       withdrawalBalanceType === 'task'
-        ? Number(profile?.task_balance ?? 0)
+        ? Number(
+            profile?.task_balance ?? 0
+          )
         : Number(
             profile?.affiliate_balance ?? 0
           )
@@ -500,7 +560,8 @@ function App() {
     if (amount > selectedBalance) {
       showMessage(
         `Insufficient ${
-          withdrawalBalanceType === 'task'
+          withdrawalBalanceType ===
+          'task'
             ? 'Task'
             : 'Affiliate'
         } Balance.`,
@@ -540,26 +601,44 @@ function App() {
     setWithdrawalLoading(true)
 
     try {
+      const { data, error } =
+        await supabase.rpc(
+          'request_withdrawal',
+          {
+            p_balance_type:
+              withdrawalBalanceType,
+            p_amount: amount,
+            p_bank_name:
+              cleanBankName,
+            p_account_name:
+              cleanAccountName,
+            p_account_number:
+              cleanAccountNumber,
+          }
+        )
+
+      if (error) {
+        throw new Error(
+          error.message
+        )
+      }
+
+      const withdrawal = data
+
+      if (!withdrawal) {
+        throw new Error(
+          'Withdrawal request was not created.'
+        )
+      }
+
       const reference =
+        withdrawal.payment_reference ||
         generateWithdrawalReference()
 
       const newWithdrawal = {
-        id: crypto?.randomUUID
-          ? crypto.randomUUID()
-          : `${Date.now()}`,
-        user_id: user.id,
-        amount,
-        bank_name: cleanBankName,
-        account_name: cleanAccountName,
-        account_number:
-          cleanAccountNumber,
+        ...withdrawal,
         payment_reference:
           reference,
-        status: 'pending',
-        balance_type:
-          withdrawalBalanceType,
-        created_at:
-          new Date().toISOString(),
         test_mode: true,
       }
 
@@ -572,6 +651,8 @@ function App() {
         user.id,
         updatedHistory
       )
+
+      await loadProfile(user)
 
       setWithdrawalAmount('')
       setBankName('')
@@ -589,7 +670,8 @@ function App() {
       )
 
       showMessage(
-        'Unable to create the withdrawal request.',
+        err?.message ||
+          'Unable to create the withdrawal request.',
         'error'
       )
     } finally {
@@ -601,7 +683,9 @@ function App() {
   // TASK SUBMISSION
   // --------------------------------------------------
 
-  const openTaskSubmission = (task) => {
+  const openTaskSubmission = (
+    task
+  ) => {
     setMessage('')
     setProof('')
     setProofFile(null)
@@ -615,7 +699,9 @@ function App() {
     setSubmitting(false)
   }
 
-  const handleProofFile = (event) => {
+  const handleProofFile = (
+    event
+  ) => {
     const file =
       event.target.files?.[0]
 
@@ -655,10 +741,17 @@ function App() {
     setProofFile(file)
   }
 
-  const submitProof = async (event) => {
+  const submitProof = async (
+    event
+  ) => {
     event.preventDefault()
 
-    if (!selectedTask || !user) return
+    if (
+      !selectedTask ||
+      !user
+    ) {
+      return
+    }
 
     const cleanProof =
       proof.trim()
@@ -692,7 +785,10 @@ function App() {
         const safeFileName =
           `${Date.now()}-${Math.random()
             .toString(36)
-            .substring(2, 10)}.${fileExtension}`
+            .substring(
+              2,
+              10
+            )}.${fileExtension}`
 
         const filePath =
           `${user.id}/${safeFileName}`
@@ -701,7 +797,9 @@ function App() {
           error: uploadError,
         } =
           await supabase.storage
-            .from('task-proofs')
+            .from(
+              'task-proofs'
+            )
             .upload(
               filePath,
               proofFile,
@@ -756,18 +854,24 @@ function App() {
             'task_submissions'
           )
           .insert({
-            user_id: user.id,
+            user_id:
+              user.id,
             task_id:
               selectedTask.id,
-            proof: finalProof,
-            status: 'Pending',
-            reward: Number(
-              selectedTask.reward
-            ),
+            proof:
+              finalProof,
+            status:
+              'Pending',
+            reward:
+              Number(
+                selectedTask.reward
+              ),
           })
 
       if (submissionError) {
-        if (uploadedFilePath) {
+        if (
+          uploadedFilePath
+        ) {
           await supabase.storage
             .from(
               'task-proofs'
@@ -808,7 +912,9 @@ function App() {
         err
       )
 
-      if (uploadedFilePath) {
+      if (
+        uploadedFilePath
+      ) {
         await supabase.storage
           .from(
             'task-proofs'
@@ -944,19 +1050,22 @@ function App() {
 
           <div className="auth-heading">
             <span className="section-label">
-              {authMode === 'login'
+              {authMode ===
+              'login'
                 ? 'WELCOME BACK'
                 : 'GET STARTED'}
             </span>
 
             <h2>
-              {authMode === 'login'
+              {authMode ===
+              'login'
                 ? 'Welcome back'
                 : 'Create your account'}
             </h2>
 
             <p>
-              {authMode === 'login'
+              {authMode ===
+              'login'
                 ? 'Log in to access your dashboard.'
                 : 'Create your TaskFlow NG account.'}
             </p>
@@ -975,9 +1084,12 @@ function App() {
           )}
 
           <form
-            onSubmit={handleAuth}
+            onSubmit={
+              handleAuth
+            }
           >
-            {authMode === 'signup' && (
+            {authMode ===
+              'signup' && (
               <div className="form-group">
                 <label>
                   Full Name
@@ -985,10 +1097,15 @@ function App() {
 
                 <input
                   type="text"
-                  value={fullName}
-                  onChange={(e) =>
+                  value={
+                    fullName
+                  }
+                  onChange={(
+                    e
+                  ) =>
                     setFullName(
-                      e.target.value
+                      e.target
+                        .value
                     )
                   }
                   placeholder="Enter your full name"
@@ -1008,9 +1125,12 @@ function App() {
               <input
                 type="email"
                 value={email}
-                onChange={(e) =>
+                onChange={(
+                  e
+                ) =>
                   setEmail(
-                    e.target.value
+                    e.target
+                      .value
                   )
                 }
                 placeholder="Enter your email"
@@ -1029,10 +1149,15 @@ function App() {
 
               <input
                 type="password"
-                value={password}
-                onChange={(e) =>
+                value={
+                  password
+                }
+                onChange={(
+                  e
+                ) =>
                   setPassword(
-                    e.target.value
+                    e.target
+                      .value
                   )
                 }
                 placeholder="Enter your password"
@@ -1083,8 +1208,12 @@ function App() {
                     ? 'signup'
                     : 'login'
                 )
-                setAuthError('')
-                setAuthMessage('')
+                setAuthError(
+                  ''
+                )
+                setAuthMessage(
+                  ''
+                )
               }}
               disabled={
                 authLoading
@@ -1160,7 +1289,9 @@ function App() {
     'TaskFlow User'
 
   const firstName =
-    displayName.split(' ')[0]
+    displayName.split(
+      ' '
+    )[0]
 
   const initials =
     getInitials(
@@ -1290,8 +1421,7 @@ function App() {
               </strong>
 
               <span>
-                Earn rewards by completing available
-                tasks.
+                Earn rewards by completing available tasks.
               </span>
             </div>
 
@@ -1314,8 +1444,7 @@ function App() {
               </strong>
 
               <span>
-                Invite people and grow your affiliate
-                earnings.
+                Invite people and grow your affiliate earnings.
               </span>
             </div>
 
@@ -1393,25 +1522,27 @@ function App() {
             </strong>
 
             <span>
-              Please wait while we load available
-              tasks.
+              Please wait while we load available tasks.
             </span>
           </div>
-        ) : tasks.length === 0 ? (
+        ) : tasks.length ===
+          0 ? (
           <div className="empty-card">
             <strong>
               No tasks available
             </strong>
 
             <span>
-              New tasks will appear here when they
-              are published.
+              New tasks will appear here when they are published.
             </span>
           </div>
         ) : (
           <div className="mini-task-list">
             {tasks
-              .slice(0, 3)
+              .slice(
+                0,
+                3
+              )
               .map(
                 (
                   task,
@@ -1476,8 +1607,7 @@ function App() {
         </h2>
 
         <p>
-          Complete tasks and submit proof to earn
-          rewards.
+          Complete tasks and submit proof to earn rewards.
         </p>
       </div>
 
@@ -1501,19 +1631,18 @@ function App() {
           </strong>
 
           <span>
-            Please wait while we load available
-            tasks.
+            Please wait while we load available tasks.
           </span>
         </div>
-      ) : tasks.length === 0 ? (
+      ) : tasks.length ===
+        0 ? (
         <div className="empty-card large">
           <strong>
             No tasks available
           </strong>
 
           <span>
-            Check back later for new earning
-            opportunities.
+            Check back later for new earning opportunities.
           </span>
         </div>
       ) : (
@@ -1542,7 +1671,9 @@ function App() {
                 </div>
 
                 <h3>
-                  {task.title}
+                  {
+                    task.title
+                  }
                 </h3>
 
                 <p>
@@ -1598,8 +1729,7 @@ function App() {
         </h2>
 
         <p>
-          Invite friends and grow your affiliate
-          earnings.
+          Invite friends and grow your affiliate earnings.
         </p>
       </div>
 
@@ -1617,9 +1747,7 @@ function App() {
         </h2>
 
         <p>
-          Share your referral code with friends who
-          join TaskFlow NG. Your affiliate earnings
-          will appear in your Affiliate Balance.
+          Share your referral code with friends who join TaskFlow NG. Your affiliate earnings will appear in your Affiliate Balance.
         </p>
 
         <div className="referral-code-box">
@@ -1633,18 +1761,22 @@ function App() {
               ?.writeText(
                 REFERRAL_CODE
               )
-              .then(() => {
-                showMessage(
-                  'Referral code copied successfully.',
-                  'success'
-                )
-              })
-              .catch(() => {
-                showMessage(
-                  'Copy failed. Please copy the code manually.',
-                  'error'
-                )
-              })
+              .then(
+                () => {
+                  showMessage(
+                    'Referral code copied successfully.',
+                    'success'
+                  )
+                }
+              )
+              .catch(
+                () => {
+                  showMessage(
+                    'Copy failed. Please copy the code manually.',
+                    'error'
+                  )
+                }
+              )
           }}
         >
           Copy Referral Code
@@ -1732,7 +1864,9 @@ function App() {
             value={
               depositAmount
             }
-            onChange={(e) =>
+            onChange={(
+              e
+            ) =>
               setDepositAmount(
                 e.target.value
               )
@@ -1794,8 +1928,7 @@ function App() {
         </h2>
 
         <p>
-          Choose a balance and submit your withdrawal
-          request.
+          Choose a balance and submit your withdrawal request.
         </p>
       </div>
 
@@ -1806,9 +1939,7 @@ function App() {
 
         <br />
 
-        This withdrawal form is currently for design
-        and testing. It does not send real money or
-        change your actual balance.
+        This withdrawal form is currently for design and testing. It does not send real money.
       </div>
 
       <div className="withdraw-choice-grid">
@@ -1907,7 +2038,9 @@ function App() {
               value={
                 withdrawalAmount
               }
-              onChange={(e) =>
+              onChange={(
+                e
+              ) =>
                 setWithdrawalAmount(
                   e.target.value
                 )
@@ -1933,7 +2066,9 @@ function App() {
               value={
                 bankName
               }
-              onChange={(e) =>
+              onChange={(
+                e
+              ) =>
                 setBankName(
                   e.target.value
                 )
@@ -1955,7 +2090,9 @@ function App() {
               value={
                 accountName
               }
-              onChange={(e) =>
+              onChange={(
+                e
+              ) =>
                 setAccountName(
                   e.target.value
                 )
@@ -1979,7 +2116,9 @@ function App() {
               value={
                 accountNumber
               }
-              onChange={(e) =>
+              onChange={(
+                e
+              ) =>
                 setAccountNumber(
                   e.target.value
                     .replace(
@@ -2041,8 +2180,7 @@ function App() {
             </strong>
 
             <span>
-              Your withdrawal requests will appear
-              here.
+              Your withdrawal requests will appear here.
             </span>
           </div>
         ) : (
@@ -2258,9 +2396,7 @@ function App() {
           <button
             className="brand-button"
             onClick={() =>
-              goTo(
-                'Dashboard'
-              )
+              goTo('Dashboard')
             }
           >
             <div className="tf-logo small">
@@ -2283,9 +2419,7 @@ function App() {
           <button
             className="profile-button"
             onClick={() =>
-              goTo(
-                'Profile'
-              )
+              goTo('Profile')
             }
           >
             <div className="avatar">
@@ -2340,9 +2474,7 @@ function App() {
                 )
               }
             >
-              <span>
-                ⌂
-              </span>
+              <span>⌂</span>
               Dashboard
             </button>
 
@@ -2354,14 +2486,10 @@ function App() {
                   : 'nav-item'
               }
               onClick={() =>
-                goTo(
-                  'Tasks'
-                )
+                goTo('Tasks')
               }
             >
-              <span>
-                ✓
-              </span>
+              <span>✓</span>
               Tasks
             </button>
 
@@ -2378,9 +2506,7 @@ function App() {
                 )
               }
             >
-              <span>
-                ↗
-              </span>
+              <span>↗</span>
               Refer & Earn
             </button>
 
@@ -2397,9 +2523,7 @@ function App() {
                 )
               }
             >
-              <span>
-                +
-              </span>
+              <span>+</span>
               Deposit
             </button>
 
@@ -2416,9 +2540,7 @@ function App() {
                 )
               }
             >
-              <span>
-                ↓
-              </span>
+              <span>↓</span>
               Withdraw
             </button>
           </nav>
@@ -2437,9 +2559,7 @@ function App() {
                 )
               }
             >
-              <span>
-                ●
-              </span>
+              <span>●</span>
               My Profile
             </button>
 
@@ -2449,9 +2569,7 @@ function App() {
                 handleLogout
               }
             >
-              <span>
-                ↪
-              </span>
+              <span>↪</span>
               Log Out
             </button>
           </div>
@@ -2574,9 +2692,12 @@ function App() {
                   value={
                     proof
                   }
-                  onChange={(e) =>
+                  onChange={(
+                    e
+                  ) =>
                     setProof(
-                      e.target.value
+                      e.target
+                        .value
                     )
                   }
                   placeholder="Enter your proof or explain how you completed the task..."
