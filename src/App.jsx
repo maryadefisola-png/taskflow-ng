@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { BrowserRouter } from "react-router-dom"
 import { supabase } from "./supabase"
 
@@ -6,18 +6,22 @@ function App() {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
+
   const [depositAmount, setDepositAmount] = useState("")
   const [depositLoading, setDepositLoading] = useState(false)
+
   const [message, setMessage] = useState("")
 
-  // -----------------------------------------
-  // LOAD USER + PROFILE
-  // -----------------------------------------
+  const verificationStarted = useRef(false)
+
+  // =====================================================
+  // LOAD PROFILE
+  // =====================================================
 
   const loadProfile = async (currentUser) => {
     if (!currentUser) {
       setProfile(null)
-      return
+      return null
     }
 
     const { data, error } = await supabase
@@ -28,32 +32,46 @@ function App() {
 
     if (error) {
       console.error("Profile error:", error)
-      return
+      return null
     }
 
+    console.log("PROFILE LOADED:", data)
+
     setProfile(data)
+
+    return data
   }
 
-  // -----------------------------------------
+  // =====================================================
   // AUTH
-  // -----------------------------------------
+  // =====================================================
 
   useEffect(() => {
     let mounted = true
 
     const initialize = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
 
-      if (!mounted) return
+        if (!mounted) return
 
-      if (session?.user) {
-        setUser(session.user)
-        await loadProfile(session.user)
+        if (session?.user) {
+          setUser(session.user)
+
+          await loadProfile(session.user)
+        }
+      } catch (error) {
+        console.error(
+          "Authentication initialization error:",
+          error
+        )
+      } finally {
+        if (mounted) {
+          setLoading(false)
+        }
       }
-
-      setLoading(false)
     }
 
     initialize()
@@ -66,6 +84,7 @@ function App() {
 
         if (session?.user) {
           setUser(session.user)
+
           await loadProfile(session.user)
         } else {
           setUser(null)
@@ -80,11 +99,17 @@ function App() {
     }
   }, [])
 
-  // -----------------------------------------
-  // VERIFY PAYMENT FROM URL
-  // -----------------------------------------
+  // =====================================================
+  // VERIFY PAYSTACK PAYMENT
+  // =====================================================
 
   useEffect(() => {
+    if (!user) return
+
+    if (verificationStarted.current) {
+      return
+    }
+
     const verifyPayment = async () => {
       const params = new URLSearchParams(
         window.location.search
@@ -94,23 +119,62 @@ function App() {
         params.get("reference") ||
         params.get("trxref")
 
+      console.log(
+        "Paystack URL:",
+        window.location.href
+      )
+
+      console.log(
+        "Paystack reference:",
+        reference
+      )
+
+      // No Paystack reference means this is
+      // a normal dashboard visit.
       if (!reference) {
         return
       }
 
-      setMessage("Verifying payment...")
+      verificationStarted.current = true
+
+      setMessage(
+        "Payment successful. Verifying and adding funds..."
+      )
 
       try {
+        // ---------------------------------------------
+        // GET CURRENT SESSION
+        // ---------------------------------------------
+
         const {
           data: { session },
+          error: sessionError,
         } = await supabase.auth.getSession()
 
-        if (!session?.access_token) {
-          setMessage(
-            "Please log in again to verify your payment."
+        if (
+          sessionError ||
+          !session?.access_token
+        ) {
+          console.error(
+            "Session error:",
+            sessionError
           )
+
+          setMessage(
+            "Your login session expired. Please log in again."
+          )
+
           return
         }
+
+        // ---------------------------------------------
+        // CALL VERIFY-PAYMENT
+        // ---------------------------------------------
+
+        console.log(
+          "Calling verify-payment with:",
+          reference
+        )
 
         const {
           data,
@@ -125,24 +189,42 @@ function App() {
         )
 
         console.log(
-          "Payment verification response:",
+          "VERIFY PAYMENT RESPONSE:",
           data
         )
 
+        console.log(
+          "VERIFY PAYMENT ERROR:",
+          error
+        )
+
+        // ---------------------------------------------
+        // HANDLE FUNCTION ERROR
+        // ---------------------------------------------
+
         if (error) {
           console.error(
-            "Verification error:",
+            "Verification function error:",
             error
           )
 
           setMessage(
-            "Payment verification failed. Please try again."
+            "Payment verification failed. Please contact support if money was deducted."
           )
 
           return
         }
 
+        // ---------------------------------------------
+        // HANDLE SERVER RESPONSE
+        // ---------------------------------------------
+
         if (!data?.status) {
+          console.error(
+            "Payment verification unsuccessful:",
+            data
+          )
+
           setMessage(
             data?.message ||
               "Payment could not be verified."
@@ -151,19 +233,40 @@ function App() {
           return
         }
 
-        setMessage(
-          data?.message ||
-            "Payment verified successfully."
+        // ---------------------------------------------
+        // PAYMENT VERIFIED
+        // ---------------------------------------------
+
+        console.log(
+          "PAYMENT VERIFIED SUCCESSFULLY:",
+          data
         )
 
-        // -------------------------------------
-        // IMPORTANT:
-        // REFRESH BALANCE AFTER CREDIT
-        // -------------------------------------
+        setMessage(
+          data?.message ||
+            "Payment verified and balance credited successfully."
+        )
+
+        // ---------------------------------------------
+        // REFRESH PROFILE
+        // ---------------------------------------------
 
         await loadProfile(session.user)
 
-        // Remove Paystack reference from URL
+        // ---------------------------------------------
+        // WAIT A LITTLE AND LOAD AGAIN
+        // This makes sure the UI receives the
+        // database value after the RPC finishes.
+        // ---------------------------------------------
+
+        setTimeout(async () => {
+          await loadProfile(session.user)
+        }, 1000)
+
+        // ---------------------------------------------
+        // REMOVE PAYSTACK PARAMETERS
+        // ---------------------------------------------
+
         const cleanUrl =
           window.location.origin +
           window.location.pathname
@@ -180,19 +283,17 @@ function App() {
         )
 
         setMessage(
-          "Something went wrong while verifying payment."
+          "Something went wrong while verifying the payment."
         )
       }
     }
 
-    if (user) {
-      verifyPayment()
-    }
+    verifyPayment()
   }, [user])
 
-  // -----------------------------------------
+  // =====================================================
   // INITIALIZE DEPOSIT
-  // -----------------------------------------
+  // =====================================================
 
   const initializeDeposit = async () => {
     setMessage("")
@@ -208,6 +309,7 @@ function App() {
       setMessage(
         "Minimum deposit is ₦1,000."
       )
+
       return
     }
 
@@ -215,6 +317,7 @@ function App() {
       setMessage(
         "Please log in first."
       )
+
       return
     }
 
@@ -223,14 +326,32 @@ function App() {
     try {
       const {
         data: { session },
+        error: sessionError,
       } = await supabase.auth.getSession()
 
-      if (!session?.access_token) {
+      if (
+        sessionError ||
+        !session?.access_token
+      ) {
+        console.error(
+          "Session error:",
+          sessionError
+        )
+
         setMessage(
           "Your session has expired. Please log in again."
         )
+
         return
       }
+
+      console.log(
+        "Initializing payment:",
+        {
+          email: user.email,
+          amount,
+        }
+      )
 
       const {
         data,
@@ -239,16 +360,20 @@ function App() {
         "initialize-payment",
         {
           body: {
-            email:
-              user.email,
+            email: user.email,
             amount,
           },
         }
       )
 
       console.log(
-        "Initialize payment response:",
+        "INITIALIZE PAYMENT RESPONSE:",
         data
+      )
+
+      console.log(
+        "INITIALIZE PAYMENT ERROR:",
+        error
       )
 
       if (error) {
@@ -268,6 +393,11 @@ function App() {
         !data?.status ||
         !data?.data?.authorization_url
       ) {
+        console.error(
+          "Invalid initialize response:",
+          data
+        )
+
         setMessage(
           data?.message ||
             "Unable to initialize payment."
@@ -276,9 +406,20 @@ function App() {
         return
       }
 
-      // -------------------------------------
-      // SEND USER TO PAYSTACK
-      // -------------------------------------
+      // ---------------------------------------------
+      // RESET VERIFICATION FLAG BEFORE PAYMENT
+      // ---------------------------------------------
+
+      verificationStarted.current = false
+
+      // ---------------------------------------------
+      // REDIRECT TO PAYSTACK
+      // ---------------------------------------------
+
+      console.log(
+        "Redirecting to Paystack:",
+        data.data.authorization_url
+      )
 
       window.location.href =
         data.data.authorization_url
@@ -296,9 +437,9 @@ function App() {
     }
   }
 
-  // -----------------------------------------
+  // =====================================================
   // LOGOUT
-  // -----------------------------------------
+  // =====================================================
 
   const logout = async () => {
     await supabase.auth.signOut()
@@ -307,9 +448,9 @@ function App() {
     setProfile(null)
   }
 
-  // -----------------------------------------
+  // =====================================================
   // LOADING
-  // -----------------------------------------
+  // =====================================================
 
   if (loading) {
     return (
@@ -317,6 +458,7 @@ function App() {
         style={{
           padding: 40,
           textAlign: "center",
+          fontFamily: "Arial, sans-serif",
         }}
       >
         Loading...
@@ -324,9 +466,9 @@ function App() {
     )
   }
 
-  // -----------------------------------------
+  // =====================================================
   // NOT LOGGED IN
-  // -----------------------------------------
+  // =====================================================
 
   if (!user) {
     return (
@@ -336,6 +478,7 @@ function App() {
             padding: 40,
             maxWidth: 500,
             margin: "0 auto",
+            fontFamily: "Arial, sans-serif",
           }}
         >
           <h1>TaskFlow NG</h1>
@@ -348,9 +491,9 @@ function App() {
     )
   }
 
-  // -----------------------------------------
+  // =====================================================
   // DASHBOARD
-  // -----------------------------------------
+  // =====================================================
 
   return (
     <BrowserRouter>
@@ -364,6 +507,8 @@ function App() {
             "Arial, sans-serif",
         }}
       >
+        {/* HEADER */}
+
         <div
           style={{
             display: "flex",
@@ -395,6 +540,8 @@ function App() {
             marginBottom: 30,
           }}
         >
+          {/* TASK BALANCE */}
+
           <div
             style={{
               border: "1px solid #ddd",
@@ -415,10 +562,13 @@ function App() {
                 "en-NG",
                 {
                   minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
                 }
               )}
             </h2>
           </div>
+
+          {/* AFFILIATE BALANCE */}
 
           <div
             style={{
@@ -440,6 +590,7 @@ function App() {
                 "en-NG",
                 {
                   minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
                 }
               )}
             </h2>
@@ -462,6 +613,7 @@ function App() {
 
           <p>
             Minimum deposit:
+            {" "}
             ₦1,000
           </p>
 
@@ -476,12 +628,16 @@ function App() {
               )
             }
             placeholder="Enter amount"
+            disabled={
+              depositLoading
+            }
             style={{
               width: "100%",
               padding: 12,
               marginBottom: 12,
               boxSizing:
                 "border-box",
+              fontSize: 16,
             }}
           />
 
@@ -495,6 +651,11 @@ function App() {
             style={{
               width: "100%",
               padding: 14,
+              fontSize: 16,
+              cursor:
+                depositLoading
+                  ? "not-allowed"
+                  : "pointer",
             }}
           >
             {depositLoading
@@ -513,6 +674,7 @@ function App() {
               background:
                 "#f3f3f3",
               marginTop: 20,
+              lineHeight: 1.5,
             }}
           >
             {message}
