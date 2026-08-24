@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react"
-import { BrowserRouter } from "react-router-dom"
+import { BrowserRouter, Routes, Route } from "react-router-dom"
 import { supabase } from "./supabase"
+import Admin from "./Admin"
 
-function App() {
+function UserApp() {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -55,25 +56,17 @@ function App() {
 
     const initializeAuth = async () => {
       try {
-        console.log(
-          "CHECKING SUPABASE SESSION..."
-        )
+        console.log("CHECKING SUPABASE SESSION...")
 
         const {
           data: { session },
           error,
         } = await supabase.auth.getSession()
 
-        console.log(
-          "INITIAL SESSION:",
-          session
-        )
+        console.log("INITIAL SESSION:", session)
 
         if (error) {
-          console.error(
-            "GET SESSION ERROR:",
-            error
-          )
+          console.error("GET SESSION ERROR:", error)
         }
 
         if (!mounted) return
@@ -86,13 +79,9 @@ function App() {
 
           setUser(session.user)
 
-          await loadProfile(
-            session.user
-          )
+          await loadProfile(session.user)
         } else {
-          console.log(
-            "NO SUPABASE SESSION FOUND"
-          )
+          console.log("NO SUPABASE SESSION FOUND")
 
           setUser(null)
           setProfile(null)
@@ -126,9 +115,7 @@ function App() {
         if (session?.user) {
           setUser(session.user)
 
-          await loadProfile(
-            session.user
-          )
+          await loadProfile(session.user)
         } else {
           setUser(null)
           setProfile(null)
@@ -144,26 +131,19 @@ function App() {
 
   // =====================================================
   // VERIFY PAYSTACK PAYMENT
-  //
-  // IMPORTANT:
-  // This does NOT depend on `user` state.
-  // It directly checks the Supabase session first.
   // =====================================================
 
   useEffect(() => {
     let cancelled = false
 
     const verifyPayment = async () => {
-      if (
-        verificationStarted.current
-      ) {
+      if (verificationStarted.current) {
         return
       }
 
-      const params =
-        new URLSearchParams(
-          window.location.search
-        )
+      const params = new URLSearchParams(
+        window.location.search
+      )
 
       const reference =
         params.get("reference") ||
@@ -190,15 +170,10 @@ function App() {
       )
 
       try {
-        // =================================================
-        // GET CURRENT SESSION
-        // =================================================
-
         let {
           data: { session },
           error: sessionError,
-        } =
-          await supabase.auth.getSession()
+        } = await supabase.auth.getSession()
 
         console.log(
           "SESSION BEFORE PAYMENT VERIFICATION:",
@@ -212,13 +187,7 @@ function App() {
           )
         }
 
-        // =================================================
-        // TRY REFRESH IF SESSION IS MISSING
-        // =================================================
-
-        if (
-          !session?.access_token
-        ) {
+        if (!session?.access_token) {
           console.log(
             "NO SESSION. TRYING SESSION REFRESH..."
           )
@@ -226,8 +195,7 @@ function App() {
           const {
             data: refreshData,
             error: refreshError,
-          } =
-            await supabase.auth.refreshSession()
+          } = await supabase.auth.refreshSession()
 
           console.log(
             "REFRESH RESULT:",
@@ -242,13 +210,8 @@ function App() {
           }
 
           session =
-            refreshData?.session ||
-            null
+            refreshData?.session || null
         }
-
-        // =================================================
-        // STILL NO SESSION
-        // =================================================
 
         if (
           !session?.access_token ||
@@ -270,21 +233,11 @@ function App() {
           session.user.id
         )
 
-        // =================================================
-        // UPDATE USER STATE
-        // =================================================
-
         if (!cancelled) {
           setUser(session.user)
 
-          await loadProfile(
-            session.user
-          )
+          await loadProfile(session.user)
         }
-
-        // =================================================
-        // CALL VERIFY-PAYMENT
-        // =================================================
 
         console.log(
           "CALLING VERIFY-PAYMENT WITH:",
@@ -294,15 +247,14 @@ function App() {
         const {
           data,
           error,
-        } =
-          await supabase.functions.invoke(
-            "verify-payment",
-            {
-              body: {
-                reference,
-              },
-            }
-          )
+        } = await supabase.functions.invoke(
+          "verify-payment",
+          {
+            body: {
+              reference,
+            },
+          }
+        )
 
         console.log(
           "VERIFY PAYMENT RESPONSE:",
@@ -313,10 +265,6 @@ function App() {
           "VERIFY PAYMENT ERROR:",
           error
         )
-
-        // =================================================
-        // EDGE FUNCTION ERROR
-        // =================================================
 
         if (error) {
           console.error(
@@ -330,10 +278,6 @@ function App() {
 
           return
         }
-
-        // =================================================
-        // SERVER SAID PAYMENT FAILED
-        // =================================================
 
         if (!data?.status) {
           console.error(
@@ -349,10 +293,6 @@ function App() {
           return
         }
 
-        // =================================================
-        // SUCCESS
-        // =================================================
-
         console.log(
           "PAYMENT VERIFIED SUCCESSFULLY:",
           data
@@ -363,31 +303,15 @@ function App() {
             "Payment verified and balance credited successfully."
         )
 
-        // =================================================
-        // LOAD PROFILE AGAIN
-        // =================================================
-
-        await loadProfile(
-          session.user
-        )
-
-        // =================================================
-        // LOAD PROFILE ONE MORE TIME
-        // =================================================
+        await loadProfile(session.user)
 
         setTimeout(async () => {
           console.log(
             "REFRESHING PROFILE AFTER PAYMENT..."
           )
 
-          await loadProfile(
-            session.user
-          )
+          await loadProfile(session.user)
         }, 1000)
-
-        // =================================================
-        // REMOVE PAYSTACK REFERENCE FROM URL
-        // =================================================
 
         const cleanUrl =
           window.location.origin +
@@ -427,48 +351,32 @@ function App() {
     setMessage("")
 
     if (!email.trim()) {
-      setMessage(
-        "Please enter your email."
-      )
+      setMessage("Please enter your email.")
       return
     }
 
     if (!password) {
-      setMessage(
-        "Please enter your password."
-      )
+      setMessage("Please enter your password.")
       return
     }
 
     setLoginLoading(true)
 
     try {
-      console.log(
-        "SIGNING IN..."
-      )
+      console.log("SIGNING IN...")
 
       const {
         data,
         error,
-      } =
-        await supabase.auth.signInWithPassword(
-          {
-            email:
-              email.trim(),
-            password,
-          }
-        )
+      } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      })
 
-      console.log(
-        "LOGIN RESULT:",
-        data
-      )
+      console.log("LOGIN RESULT:", data)
 
       if (error) {
-        console.error(
-          "LOGIN ERROR:",
-          error
-        )
+        console.error("LOGIN ERROR:", error)
 
         setMessage(
           error.message ||
@@ -488,9 +396,7 @@ function App() {
 
       setUser(data.user)
 
-      await loadProfile(
-        data.user
-      )
+      await loadProfile(data.user)
 
       setMessage(
         "Logged in successfully."
@@ -501,9 +407,7 @@ function App() {
         error
       )
 
-      setMessage(
-        "Unable to log in."
-      )
+      setMessage("Unable to log in.")
     } finally {
       setLoginLoading(false)
     }
@@ -516,8 +420,7 @@ function App() {
   const initializeDeposit = async () => {
     setMessage("")
 
-    const amount =
-      Number(depositAmount)
+    const amount = Number(depositAmount)
 
     if (
       !Number.isFinite(amount) ||
@@ -542,13 +445,9 @@ function App() {
 
     try {
       const {
-        data: {
-          session,
-        },
-        error:
-          sessionError,
-      } =
-        await supabase.auth.getSession()
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession()
 
       console.log(
         "SESSION BEFORE INITIALIZE:",
@@ -574,8 +473,7 @@ function App() {
       console.log(
         "INITIALIZING PAYMENT:",
         {
-          email:
-            user.email,
+          email: user.email,
           amount,
         }
       )
@@ -583,17 +481,15 @@ function App() {
       const {
         data,
         error,
-      } =
-        await supabase.functions.invoke(
-          "initialize-payment",
-          {
-            body: {
-              email:
-                user.email,
-              amount,
-            },
-          }
-        )
+      } = await supabase.functions.invoke(
+        "initialize-payment",
+        {
+          body: {
+            email: user.email,
+            amount,
+          },
+        }
+      )
 
       console.log(
         "INITIALIZE PAYMENT RESPONSE:",
@@ -635,16 +531,7 @@ function App() {
         return
       }
 
-      // =================================================
-      // RESET VERIFICATION FLAG
-      // =================================================
-
-      verificationStarted.current =
-        false
-
-      // =================================================
-      // REDIRECT TO PAYSTACK
-      // =================================================
+      verificationStarted.current = false
 
       console.log(
         "REDIRECTING TO PAYSTACK:",
@@ -692,11 +579,9 @@ function App() {
         style={{
           minHeight: "100vh",
           display: "flex",
-          justifyContent:
-            "center",
+          justifyContent: "center",
           alignItems: "center",
-          fontFamily:
-            "Arial, sans-serif",
+          fontFamily: "Arial, sans-serif",
         }}
       >
         Loading...
@@ -710,351 +595,296 @@ function App() {
 
   if (!user) {
     return (
-      <BrowserRouter>
+      <div
+        style={{
+          minHeight: "100vh",
+          padding: 20,
+          boxSizing: "border-box",
+          fontFamily: "Arial, sans-serif",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
         <div
           style={{
-            minHeight: "100vh",
-            padding: 20,
-            boxSizing:
-              "border-box",
-            fontFamily:
-              "Arial, sans-serif",
-            display: "flex",
-            justifyContent:
-              "center",
-            alignItems:
-              "center",
+            width: "100%",
+            maxWidth: 420,
+            border: "1px solid #ddd",
+            borderRadius: 16,
+            padding: 25,
+            boxSizing: "border-box",
           }}
         >
-          <div
-            style={{
-              width: "100%",
-              maxWidth: 420,
-              border:
-                "1px solid #ddd",
-              borderRadius: 16,
-              padding: 25,
-              boxSizing:
-                "border-box",
-            }}
-          >
-            <h1>
-              TaskFlow NG
-            </h1>
+          <h1>TaskFlow NG</h1>
 
-            <p>
-              Login to your account
-            </p>
+          <p>
+            Login to your account
+          </p>
 
-            <form
-              onSubmit={login}
+          <form onSubmit={login}>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) =>
+                setEmail(e.target.value)
+              }
+              placeholder="Email"
+              autoComplete="email"
+              style={{
+                width: "100%",
+                padding: 14,
+                marginBottom: 12,
+                boxSizing: "border-box",
+                fontSize: 16,
+              }}
+            />
+
+            <input
+              type="password"
+              value={password}
+              onChange={(e) =>
+                setPassword(e.target.value)
+              }
+              placeholder="Password"
+              autoComplete="current-password"
+              style={{
+                width: "100%",
+                padding: 14,
+                marginBottom: 12,
+                boxSizing: "border-box",
+                fontSize: 16,
+              }}
+            />
+
+            <button
+              type="submit"
+              disabled={loginLoading}
+              style={{
+                width: "100%",
+                padding: 14,
+                fontSize: 16,
+              }}
             >
-              <input
-                type="email"
-                value={email}
-                onChange={(e) =>
-                  setEmail(
-                    e.target.value
-                  )
-                }
-                placeholder="Email"
-                autoComplete="email"
-                style={{
-                  width:
-                    "100%",
-                  padding: 14,
-                  marginBottom: 12,
-                  boxSizing:
-                    "border-box",
-                  fontSize: 16,
-                }}
-              />
+              {loginLoading
+                ? "Logging in..."
+                : "Login"}
+            </button>
+          </form>
 
-              <input
-                type="password"
-                value={password}
-                onChange={(e) =>
-                  setPassword(
-                    e.target.value
-                  )
-                }
-                placeholder="Password"
-                autoComplete="current-password"
-                style={{
-                  width:
-                    "100%",
-                  padding: 14,
-                  marginBottom: 12,
-                  boxSizing:
-                    "border-box",
-                  fontSize: 16,
-                }}
-              />
-
-              <button
-                type="submit"
-                disabled={
-                  loginLoading
-                }
-                style={{
-                  width:
-                    "100%",
-                  padding: 14,
-                  fontSize: 16,
-                }}
-              >
-                {loginLoading
-                  ? "Logging in..."
-                  : "Login"}
-              </button>
-            </form>
-
-            {message && (
-              <div
-                style={{
-                  marginTop: 20,
-                  padding: 15,
-                  borderRadius: 10,
-                  background:
-                    "#f3f3f3",
-                  lineHeight: 1.5,
-                }}
-              >
-                {message}
-              </div>
-            )}
-          </div>
+          {message && (
+            <div
+              style={{
+                marginTop: 20,
+                padding: 15,
+                borderRadius: 10,
+                background: "#f3f3f3",
+                lineHeight: 1.5,
+              }}
+            >
+              {message}
+            </div>
+          )}
         </div>
-      </BrowserRouter>
+      </div>
     )
   }
 
   // =====================================================
-  // DASHBOARD
+  // USER DASHBOARD
   // =====================================================
 
   return (
-    <BrowserRouter>
+    <div
+      style={{
+        minHeight: "100vh",
+        padding: 20,
+        maxWidth: 700,
+        margin: "0 auto",
+        fontFamily: "Arial, sans-serif",
+      }}
+    >
+      {/* HEADER */}
+
       <div
         style={{
-          minHeight:
-            "100vh",
-          padding: 20,
-          maxWidth: 700,
-          margin:
-            "0 auto",
-          fontFamily:
-            "Arial, sans-serif",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 30,
         }}
       >
-        {/* HEADER */}
+        <h1>TaskFlow NG</h1>
 
+        <button onClick={logout}>
+          Logout
+        </button>
+      </div>
+
+      {/* BALANCES */}
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 15,
+          marginBottom: 30,
+        }}
+      >
         <div
           style={{
-            display:
-              "flex",
-            justifyContent:
-              "space-between",
-            alignItems:
-              "center",
-            marginBottom: 30,
-          }}
-        >
-          <h1>
-            TaskFlow NG
-          </h1>
-
-          <button
-            onClick={logout}
-          >
-            Logout
-          </button>
-        </div>
-
-        {/* BALANCES */}
-
-        <div
-          style={{
-            display:
-              "grid",
-            gridTemplateColumns:
-              "1fr 1fr",
-            gap: 15,
-            marginBottom:
-              30,
-          }}
-        >
-          <div
-            style={{
-              border:
-                "1px solid #ddd",
-              borderRadius:
-                12,
-              padding: 20,
-            }}
-          >
-            <p>
-              Task Balance
-            </p>
-
-            <h2>
-              ₦
-              {Number(
-                profile?.task_balance ||
-                  0
-              ).toLocaleString(
-                "en-NG",
-                {
-                  minimumFractionDigits:
-                    2,
-                  maximumFractionDigits:
-                    2,
-                }
-              )}
-            </h2>
-          </div>
-
-          <div
-            style={{
-              border:
-                "1px solid #ddd",
-              borderRadius:
-                12,
-              padding: 20,
-            }}
-          >
-            <p>
-              Affiliate Balance
-            </p>
-
-            <h2>
-              ₦
-              {Number(
-                profile?.affiliate_balance ||
-                  0
-              ).toLocaleString(
-                "en-NG",
-                {
-                  minimumFractionDigits:
-                    2,
-                  maximumFractionDigits:
-                    2,
-                }
-              )}
-            </h2>
-          </div>
-        </div>
-
-        {/* DEPOSIT */}
-
-        <div
-          style={{
-            border:
-              "1px solid #ddd",
-            borderRadius:
-              12,
+            border: "1px solid #ddd",
+            borderRadius: 12,
             padding: 20,
-            marginBottom:
-              20,
           }}
         >
+          <p>Task Balance</p>
+
           <h2>
-            Deposit
+            ₦
+            {Number(
+              profile?.task_balance || 0
+            ).toLocaleString(
+              "en-NG",
+              {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              }
+            )}
           </h2>
-
-          <p>
-            Minimum deposit:
-            {" "}
-            ₦1,000
-          </p>
-
-          <input
-            type="number"
-            min="1000"
-            step="100"
-            value={
-              depositAmount
-            }
-            onChange={(e) =>
-              setDepositAmount(
-                e.target.value
-              )
-            }
-            placeholder="Enter amount"
-            disabled={
-              depositLoading
-            }
-            style={{
-              width:
-                "100%",
-              padding: 12,
-              marginBottom:
-                12,
-              boxSizing:
-                "border-box",
-              fontSize: 16,
-            }}
-          />
-
-          <button
-            onClick={
-              initializeDeposit
-            }
-            disabled={
-              depositLoading
-            }
-            style={{
-              width:
-                "100%",
-              padding: 14,
-              fontSize: 16,
-              cursor:
-                depositLoading
-                  ? "not-allowed"
-                  : "pointer",
-            }}
-          >
-            {depositLoading
-              ? "Processing..."
-              : "Deposit"}
-          </button>
         </div>
-
-        {/* MESSAGE */}
-
-        {message && (
-          <div
-            style={{
-              padding: 15,
-              borderRadius: 10,
-              background:
-                "#f3f3f3",
-              marginTop: 20,
-              lineHeight:
-                1.5,
-            }}
-          >
-            {message}
-          </div>
-        )}
-
-        {/* USER */}
 
         <div
           style={{
-            marginTop: 30,
-            fontSize: 14,
+            border: "1px solid #ddd",
+            borderRadius: 12,
+            padding: 20,
           }}
         >
-          <p>
-            Logged in as:
-          </p>
+          <p>Affiliate Balance</p>
 
-          <strong>
-            {user.email}
-          </strong>
+          <h2>
+            ₦
+            {Number(
+              profile?.affiliate_balance || 0
+            ).toLocaleString(
+              "en-NG",
+              {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              }
+            )}
+          </h2>
         </div>
       </div>
+
+      {/* DEPOSIT */}
+
+      <div
+        style={{
+          border: "1px solid #ddd",
+          borderRadius: 12,
+          padding: 20,
+          marginBottom: 20,
+        }}
+      >
+        <h2>Deposit</h2>
+
+        <p>
+          Minimum deposit: ₦1,000
+        </p>
+
+        <input
+          type="number"
+          min="1000"
+          step="100"
+          value={depositAmount}
+          onChange={(e) =>
+            setDepositAmount(
+              e.target.value
+            )
+          }
+          placeholder="Enter amount"
+          disabled={depositLoading}
+          style={{
+            width: "100%",
+            padding: 12,
+            marginBottom: 12,
+            boxSizing: "border-box",
+            fontSize: 16,
+          }}
+        />
+
+        <button
+          onClick={initializeDeposit}
+          disabled={depositLoading}
+          style={{
+            width: "100%",
+            padding: 14,
+            fontSize: 16,
+            cursor: depositLoading
+              ? "not-allowed"
+              : "pointer",
+          }}
+        >
+          {depositLoading
+            ? "Processing..."
+            : "Deposit"}
+        </button>
+      </div>
+
+      {/* MESSAGE */}
+
+      {message && (
+        <div
+          style={{
+            padding: 15,
+            borderRadius: 10,
+            background: "#f3f3f3",
+            marginTop: 20,
+            lineHeight: 1.5,
+          }}
+        >
+          {message}
+        </div>
+      )}
+
+      {/* USER */}
+
+      <div
+        style={{
+          marginTop: 30,
+          fontSize: 14,
+        }}
+      >
+        <p>Logged in as:</p>
+
+        <strong>
+          {user.email}
+        </strong>
+      </div>
+    </div>
+  )
+}
+
+// =====================================================
+// MAIN APP ROUTER
+// =====================================================
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route
+          path="/admin"
+          element={<Admin />}
+        />
+
+        <Route
+          path="*"
+          element={<UserApp />}
+        />
+      </Routes>
     </BrowserRouter>
   )
 }
