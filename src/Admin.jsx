@@ -5,7 +5,6 @@ function Admin() {
   const [user, setUser] = useState(null)
   const [profiles, setProfiles] = useState([])
   const [loading, setLoading] = useState(true)
-  const [authorized, setAuthorized] = useState(false)
   const [message, setMessage] = useState("")
 
   // =====================================================
@@ -19,11 +18,14 @@ function Admin() {
       try {
         setLoading(true)
         setMessage("")
-        setAuthorized(false)
 
-        // -----------------------------------------------
+        console.log("====================================")
+        console.log("ADMIN DASHBOARD INITIALIZING")
+        console.log("====================================")
+
+        // =================================================
         // GET CURRENT SESSION
-        // -----------------------------------------------
+        // =================================================
 
         const {
           data: { session },
@@ -33,6 +35,11 @@ function Admin() {
         console.log(
           "ADMIN SESSION:",
           session
+        )
+
+        console.log(
+          "ADMIN SESSION ERROR:",
+          sessionError
         )
 
         if (sessionError) {
@@ -50,11 +57,15 @@ function Admin() {
           return
         }
 
-        // -----------------------------------------------
-        // USER NOT LOGGED IN
-        // -----------------------------------------------
+        // =================================================
+        // CHECK LOGIN
+        // =================================================
 
         if (!session?.user) {
+          console.log(
+            "NO LOGGED-IN USER FOUND"
+          )
+
           if (mounted) {
             setMessage(
               "You must be logged in to access the admin page."
@@ -66,21 +77,29 @@ function Admin() {
 
         if (!mounted) return
 
-        setUser(session.user)
+        // =================================================
+        // LOG USER INFORMATION
+        // =================================================
 
         console.log(
-          "ADMIN USER ID:",
+          "LOGGED IN ADMIN USER ID:",
           session.user.id
         )
 
         console.log(
-          "ADMIN USER EMAIL:",
+          "LOGGED IN ADMIN EMAIL:",
           session.user.email
         )
 
-        // -----------------------------------------------
+        setUser(session.user)
+
+        // =================================================
         // LOAD CURRENT USER PROFILE
-        // -----------------------------------------------
+        // =================================================
+
+        console.log(
+          "LOADING ADMIN PROFILE..."
+        )
 
         const {
           data: adminProfile,
@@ -91,9 +110,18 @@ function Admin() {
           .eq("id", session.user.id)
           .single()
 
+        // =================================================
+        // ADMIN PROFILE DEBUG
+        // =================================================
+
         console.log(
-          "ADMIN PROFILE:",
+          "ADMIN PROFILE RESULT:",
           adminProfile
+        )
+
+        console.log(
+          "ADMIN PROFILE ERROR:",
+          profileError
         )
 
         if (profileError) {
@@ -111,16 +139,32 @@ function Admin() {
           return
         }
 
-        // -----------------------------------------------
-        // CHECK ADMIN ROLE
-        // -----------------------------------------------
+        // =================================================
+        // ADMIN CHECK
+        // =================================================
 
-        if (
-          adminProfile?.role !== "admin"
-        ) {
-          console.warn(
-            "ADMIN ACCESS DENIED:",
-            adminProfile?.role
+        const isAdmin =
+          adminProfile?.role === "admin" ||
+          adminProfile?.is_admin === true
+
+        console.log(
+          "ADMIN PROFILE ROLE:",
+          adminProfile?.role
+        )
+
+        console.log(
+          "ADMIN PROFILE IS_ADMIN:",
+          adminProfile?.is_admin
+        )
+
+        console.log(
+          "FRONTEND ADMIN CHECK:",
+          isAdmin
+        )
+
+        if (!isAdmin) {
+          console.error(
+            "ACCESS DENIED: USER IS NOT ADMIN"
           )
 
           if (mounted) {
@@ -133,20 +177,16 @@ function Admin() {
         }
 
         console.log(
-          "ADMIN ACCESS GRANTED"
+          "ADMIN ACCESS CONFIRMED"
         )
 
-        // -----------------------------------------------
-        // USER IS ADMIN
-        // -----------------------------------------------
-
-        if (mounted) {
-          setAuthorized(true)
-        }
-
-        // -----------------------------------------------
+        // =================================================
         // LOAD ALL PROFILES
-        // -----------------------------------------------
+        // =================================================
+
+        console.log(
+          "LOADING ALL PROFILES..."
+        )
 
         const {
           data,
@@ -157,6 +197,20 @@ function Admin() {
           .order("created_at", {
             ascending: false,
           })
+
+        // =================================================
+        // ALL PROFILES DEBUG
+        // =================================================
+
+        console.log(
+          "ALL PROFILES RESULT:",
+          data
+        )
+
+        console.log(
+          "ALL PROFILES ERROR:",
+          error
+        )
 
         if (error) {
           console.error(
@@ -174,13 +228,25 @@ function Admin() {
         }
 
         console.log(
-          "ALL PROFILES:",
-          data
+          "NUMBER OF PROFILES:",
+          data?.length || 0
         )
 
         if (mounted) {
           setProfiles(data || [])
         }
+
+        console.log(
+          "===================================="
+        )
+
+        console.log(
+          "ADMIN DASHBOARD LOADED SUCCESSFULLY"
+        )
+
+        console.log(
+          "===================================="
+        )
       } catch (error) {
         console.error(
           "ADMIN INITIALIZATION ERROR:",
@@ -211,14 +277,11 @@ function Admin() {
   // =====================================================
 
   const logout = async () => {
-    try {
-      await supabase.auth.signOut()
-    } catch (error) {
-      console.error(
-        "ADMIN LOGOUT ERROR:",
-        error
-      )
-    }
+    console.log(
+      "ADMIN LOGGING OUT..."
+    )
+
+    await supabase.auth.signOut()
 
     window.location.href = "/"
   }
@@ -228,9 +291,7 @@ function Admin() {
   // =====================================================
 
   const formatMoney = (value) => {
-    return Number(
-      value || 0
-    ).toLocaleString(
+    return Number(value || 0).toLocaleString(
       "en-NG",
       {
         minimumFractionDigits: 2,
@@ -251,22 +312,13 @@ function Admin() {
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
-          fontFamily:
-            "Arial, sans-serif",
+          fontFamily: "Arial, sans-serif",
         }}
       >
-        <div
-          style={{
-            textAlign: "center",
-          }}
-        >
+        <div>
           <h2>
             Loading Admin Dashboard...
           </h2>
-
-          <p>
-            Checking administrator access...
-          </p>
         </div>
       </div>
     )
@@ -276,7 +328,10 @@ function Admin() {
   // ACCESS DENIED / NOT LOGGED IN
   // =====================================================
 
-  if (!authorized) {
+  if (
+    message &&
+    !user
+  ) {
     return (
       <div
         style={{
@@ -286,9 +341,7 @@ function Admin() {
           alignItems: "center",
           padding: 20,
           boxSizing: "border-box",
-          fontFamily:
-            "Arial, sans-serif",
-          background: "#fafafa",
+          fontFamily: "Arial, sans-serif",
         }}
       >
         <div
@@ -299,6 +352,72 @@ function Admin() {
             borderRadius: 16,
             padding: 25,
             boxSizing: "border-box",
+            background: "#fff",
+          }}
+        >
+          <h1>
+            TaskFlow NG
+          </h1>
+
+          <h2>
+            Admin
+          </h2>
+
+          <div
+            style={{
+              marginTop: 20,
+              padding: 15,
+              borderRadius: 10,
+              background: "#f3f3f3",
+              lineHeight: 1.5,
+            }}
+          >
+            {message}
+          </div>
+
+          <button
+            onClick={() => {
+              window.location.href = "/"
+            }}
+            style={{
+              width: "100%",
+              padding: 14,
+              marginTop: 20,
+              fontSize: 16,
+            }}
+          >
+            Return to Login
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // =====================================================
+  // ACCESS DENIED FOR LOGGED-IN USER
+  // =====================================================
+
+  if (
+    message &&
+    user &&
+    profiles.length === 0
+  ) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          padding: 20,
+          boxSizing: "border-box",
+          fontFamily: "Arial, sans-serif",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 600,
+            margin: "50px auto",
+            border: "1px solid #ddd",
+            borderRadius: 16,
+            padding: 25,
             background: "#fff",
           }}
         >
@@ -319,37 +438,20 @@ function Admin() {
               lineHeight: 1.5,
             }}
           >
-            {message ||
-              "You do not have permission to access this page."}
+            {message}
           </div>
 
-          {user ? (
-            <button
-              onClick={logout}
-              style={{
-                width: "100%",
-                padding: 14,
-                marginTop: 20,
-                fontSize: 16,
-              }}
-            >
-              Logout
-            </button>
-          ) : (
-            <button
-              onClick={() => {
-                window.location.href = "/"
-              }}
-              style={{
-                width: "100%",
-                padding: 14,
-                marginTop: 20,
-                fontSize: 16,
-              }}
-            >
-              Return to Login
-            </button>
-          )}
+          <button
+            onClick={logout}
+            style={{
+              width: "100%",
+              padding: 14,
+              marginTop: 20,
+              fontSize: 16,
+            }}
+          >
+            Logout
+          </button>
         </div>
       </div>
     )
@@ -365,8 +467,7 @@ function Admin() {
         minHeight: "100vh",
         padding: 20,
         boxSizing: "border-box",
-        fontFamily:
-          "Arial, sans-serif",
+        fontFamily: "Arial, sans-serif",
         background: "#fafafa",
       }}
     >
@@ -376,13 +477,15 @@ function Admin() {
           margin: "0 auto",
         }}
       >
-        {/* HEADER */}
+
+        {/* =================================================
+            HEADER
+        ================================================= */}
 
         <div
           style={{
             display: "flex",
-            justifyContent:
-              "space-between",
+            justifyContent: "space-between",
             alignItems: "center",
             gap: 15,
             marginBottom: 30,
@@ -410,8 +513,7 @@ function Admin() {
           <button
             onClick={logout}
             style={{
-              padding:
-                "10px 18px",
+              padding: "10px 18px",
               fontSize: 15,
             }}
           >
@@ -419,12 +521,13 @@ function Admin() {
           </button>
         </div>
 
-        {/* ADMIN EMAIL */}
+        {/* =================================================
+            ADMIN EMAIL
+        ================================================= */}
 
         <div
           style={{
-            border:
-              "1px solid #ddd",
+            border: "1px solid #ddd",
             borderRadius: 12,
             padding: 20,
             background: "#fff",
@@ -442,18 +545,11 @@ function Admin() {
           <strong>
             {user?.email}
           </strong>
-
-          <p
-            style={{
-              marginBottom: 0,
-              marginTop: 10,
-            }}
-          >
-            Role: <strong>admin</strong>
-          </p>
         </div>
 
-        {/* SUMMARY */}
+        {/* =================================================
+            SUMMARY
+        ================================================= */}
 
         <div
           style={{
@@ -464,12 +560,12 @@ function Admin() {
             marginBottom: 25,
           }}
         >
+
           {/* TOTAL USERS */}
 
           <div
             style={{
-              border:
-                "1px solid #ddd",
+              border: "1px solid #ddd",
               borderRadius: 12,
               padding: 20,
               background: "#fff",
@@ -488,8 +584,7 @@ function Admin() {
 
           <div
             style={{
-              border:
-                "1px solid #ddd",
+              border: "1px solid #ddd",
               borderRadius: 12,
               padding: 20,
               background: "#fff",
@@ -503,14 +598,10 @@ function Admin() {
               ₦
               {formatMoney(
                 profiles.reduce(
-                  (
-                    total,
-                    item
-                  ) =>
+                  (total, item) =>
                     total +
                     Number(
-                      item.task_balance ||
-                        0
+                      item.task_balance || 0
                     ),
                   0
                 )
@@ -522,8 +613,7 @@ function Admin() {
 
           <div
             style={{
-              border:
-                "1px solid #ddd",
+              border: "1px solid #ddd",
               borderRadius: 12,
               padding: 20,
               background: "#fff",
@@ -537,14 +627,10 @@ function Admin() {
               ₦
               {formatMoney(
                 profiles.reduce(
-                  (
-                    total,
-                    item
-                  ) =>
+                  (total, item) =>
                     total +
                     Number(
-                      item.affiliate_balance ||
-                        0
+                      item.affiliate_balance || 0
                     ),
                   0
                 )
@@ -553,12 +639,13 @@ function Admin() {
           </div>
         </div>
 
-        {/* USERS */}
+        {/* =================================================
+            USERS
+        ================================================= */}
 
         <div
           style={{
-            border:
-              "1px solid #ddd",
+            border: "1px solid #ddd",
             borderRadius: 12,
             padding: 20,
             background: "#fff",
@@ -569,8 +656,7 @@ function Admin() {
             Users
           </h2>
 
-          {profiles.length ===
-          0 ? (
+          {profiles.length === 0 ? (
             <p>
               No users found.
             </p>
@@ -578,17 +664,18 @@ function Admin() {
             <table
               style={{
                 width: "100%",
-                borderCollapse:
-                  "collapse",
+                borderCollapse: "collapse",
                 minWidth: 700,
               }}
             >
               <thead>
                 <tr>
+
+                  {/* USER ID */}
+
                   <th
                     style={{
-                      textAlign:
-                        "left",
+                      textAlign: "left",
                       padding: 12,
                       borderBottom:
                         "1px solid #ddd",
@@ -597,10 +684,24 @@ function Admin() {
                     User ID
                   </th>
 
+                  {/* FULL NAME */}
+
                   <th
                     style={{
-                      textAlign:
-                        "left",
+                      textAlign: "left",
+                      padding: 12,
+                      borderBottom:
+                        "1px solid #ddd",
+                    }}
+                  >
+                    Name
+                  </th>
+
+                  {/* TASK BALANCE */}
+
+                  <th
+                    style={{
+                      textAlign: "left",
                       padding: 12,
                       borderBottom:
                         "1px solid #ddd",
@@ -609,10 +710,11 @@ function Admin() {
                     Task Balance
                   </th>
 
+                  {/* AFFILIATE BALANCE */}
+
                   <th
                     style={{
-                      textAlign:
-                        "left",
+                      textAlign: "left",
                       padding: 12,
                       borderBottom:
                         "1px solid #ddd",
@@ -621,10 +723,11 @@ function Admin() {
                     Affiliate Balance
                   </th>
 
+                  {/* ROLE */}
+
                   <th
                     style={{
-                      textAlign:
-                        "left",
+                      textAlign: "left",
                       padding: 12,
                       borderBottom:
                         "1px solid #ddd",
@@ -632,10 +735,25 @@ function Admin() {
                   >
                     Role
                   </th>
+
+                  {/* ACTIVE */}
+
+                  <th
+                    style={{
+                      textAlign: "left",
+                      padding: 12,
+                      borderBottom:
+                        "1px solid #ddd",
+                    }}
+                  >
+                    Active
+                  </th>
+
                 </tr>
               </thead>
 
               <tbody>
+
                 {profiles.map(
                   (profile) => (
                     <tr
@@ -643,6 +761,9 @@ function Admin() {
                         profile.id
                       }
                     >
+
+                      {/* USER ID */}
+
                       <td
                         style={{
                           padding: 12,
@@ -653,6 +774,21 @@ function Admin() {
                       >
                         {profile.id}
                       </td>
+
+                      {/* NAME */}
+
+                      <td
+                        style={{
+                          padding: 12,
+                          borderBottom:
+                            "1px solid #eee",
+                        }}
+                      >
+                        {profile.full_name ||
+                          "—"}
+                      </td>
+
+                      {/* TASK BALANCE */}
 
                       <td
                         style={{
@@ -667,6 +803,8 @@ function Admin() {
                         )}
                       </td>
 
+                      {/* AFFILIATE BALANCE */}
+
                       <td
                         style={{
                           padding: 12,
@@ -680,6 +818,8 @@ function Admin() {
                         )}
                       </td>
 
+                      {/* ROLE */}
+
                       <td
                         style={{
                           padding: 12,
@@ -688,15 +828,52 @@ function Admin() {
                         }}
                       >
                         {profile.role ||
-                          "user"}
+                          (profile.is_admin
+                            ? "admin"
+                            : "user")}
                       </td>
+
+                      {/* ACTIVE */}
+
+                      <td
+                        style={{
+                          padding: 12,
+                          borderBottom:
+                            "1px solid #eee",
+                        }}
+                      >
+                        {profile.is_active
+                          ? "Yes"
+                          : "No"}
+                      </td>
+
                     </tr>
                   )
                 )}
+
               </tbody>
             </table>
           )}
         </div>
+
+        {/* =================================================
+            DEBUG MESSAGE
+        ================================================= */}
+
+        {message && (
+          <div
+            style={{
+              marginTop: 20,
+              padding: 15,
+              borderRadius: 10,
+              background: "#f3f3f3",
+              lineHeight: 1.5,
+            }}
+          >
+            {message}
+          </div>
+        )}
+
       </div>
     </div>
   )
