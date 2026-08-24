@@ -5,6 +5,7 @@ function Admin() {
   const [user, setUser] = useState(null)
   const [profiles, setProfiles] = useState([])
   const [loading, setLoading] = useState(true)
+  const [authorized, setAuthorized] = useState(false)
   const [message, setMessage] = useState("")
 
   // =====================================================
@@ -18,6 +19,7 @@ function Admin() {
       try {
         setLoading(true)
         setMessage("")
+        setAuthorized(false)
 
         // -----------------------------------------------
         // GET CURRENT SESSION
@@ -48,6 +50,10 @@ function Admin() {
           return
         }
 
+        // -----------------------------------------------
+        // USER NOT LOGGED IN
+        // -----------------------------------------------
+
         if (!session?.user) {
           if (mounted) {
             setMessage(
@@ -61,6 +67,16 @@ function Admin() {
         if (!mounted) return
 
         setUser(session.user)
+
+        console.log(
+          "ADMIN USER ID:",
+          session.user.id
+        )
+
+        console.log(
+          "ADMIN USER EMAIL:",
+          session.user.email
+        )
 
         // -----------------------------------------------
         // LOAD CURRENT USER PROFILE
@@ -96,21 +112,17 @@ function Admin() {
         }
 
         // -----------------------------------------------
-        // ADMIN CHECK
-        //
-        // This supports either:
-        // role = "admin"
-        //
-        // or
-        //
-        // is_admin = true
+        // CHECK ADMIN ROLE
         // -----------------------------------------------
 
-        const isAdmin =
-          adminProfile?.role === "admin" ||
-          adminProfile?.is_admin === true
+        if (
+          adminProfile?.role !== "admin"
+        ) {
+          console.warn(
+            "ADMIN ACCESS DENIED:",
+            adminProfile?.role
+          )
 
-        if (!isAdmin) {
           if (mounted) {
             setMessage(
               "Access denied. This account is not an administrator."
@@ -118,6 +130,18 @@ function Admin() {
           }
 
           return
+        }
+
+        console.log(
+          "ADMIN ACCESS GRANTED"
+        )
+
+        // -----------------------------------------------
+        // USER IS ADMIN
+        // -----------------------------------------------
+
+        if (mounted) {
+          setAuthorized(true)
         }
 
         // -----------------------------------------------
@@ -187,7 +211,14 @@ function Admin() {
   // =====================================================
 
   const logout = async () => {
-    await supabase.auth.signOut()
+    try {
+      await supabase.auth.signOut()
+    } catch (error) {
+      console.error(
+        "ADMIN LOGOUT ERROR:",
+        error
+      )
+    }
 
     window.location.href = "/"
   }
@@ -197,7 +228,9 @@ function Admin() {
   // =====================================================
 
   const formatMoney = (value) => {
-    return Number(value || 0).toLocaleString(
+    return Number(
+      value || 0
+    ).toLocaleString(
       "en-NG",
       {
         minimumFractionDigits: 2,
@@ -218,24 +251,32 @@ function Admin() {
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
-          fontFamily: "Arial, sans-serif",
+          fontFamily:
+            "Arial, sans-serif",
         }}
       >
-        <div>
-          <h2>Loading Admin Dashboard...</h2>
+        <div
+          style={{
+            textAlign: "center",
+          }}
+        >
+          <h2>
+            Loading Admin Dashboard...
+          </h2>
+
+          <p>
+            Checking administrator access...
+          </p>
         </div>
       </div>
     )
   }
 
   // =====================================================
-  // ACCESS DENIED
+  // ACCESS DENIED / NOT LOGGED IN
   // =====================================================
 
-  if (
-    message &&
-    !user
-  ) {
+  if (!authorized) {
     return (
       <div
         style={{
@@ -245,7 +286,9 @@ function Admin() {
           alignItems: "center",
           padding: 20,
           boxSizing: "border-box",
-          fontFamily: "Arial, sans-serif",
+          fontFamily:
+            "Arial, sans-serif",
+          background: "#fafafa",
         }}
       >
         <div
@@ -256,71 +299,7 @@ function Admin() {
             borderRadius: 16,
             padding: 25,
             boxSizing: "border-box",
-          }}
-        >
-          <h1>
-            TaskFlow NG
-          </h1>
-
-          <h2>
-            Admin
-          </h2>
-
-          <div
-            style={{
-              marginTop: 20,
-              padding: 15,
-              borderRadius: 10,
-              background: "#f3f3f3",
-              lineHeight: 1.5,
-            }}
-          >
-            {message}
-          </div>
-
-          <button
-            onClick={() => {
-              window.location.href = "/"
-            }}
-            style={{
-              width: "100%",
-              padding: 14,
-              marginTop: 20,
-              fontSize: 16,
-            }}
-          >
-            Return to Login
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  // =====================================================
-  // ACCESS DENIED FOR LOGGED-IN USER
-  // =====================================================
-
-  if (
-    message &&
-    user &&
-    profiles.length === 0
-  ) {
-    return (
-      <div
-        style={{
-          minHeight: "100vh",
-          padding: 20,
-          boxSizing: "border-box",
-          fontFamily: "Arial, sans-serif",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 600,
-            margin: "50px auto",
-            border: "1px solid #ddd",
-            borderRadius: 16,
-            padding: 25,
+            background: "#fff",
           }}
         >
           <h1>
@@ -340,20 +319,37 @@ function Admin() {
               lineHeight: 1.5,
             }}
           >
-            {message}
+            {message ||
+              "You do not have permission to access this page."}
           </div>
 
-          <button
-            onClick={logout}
-            style={{
-              width: "100%",
-              padding: 14,
-              marginTop: 20,
-              fontSize: 16,
-            }}
-          >
-            Logout
-          </button>
+          {user ? (
+            <button
+              onClick={logout}
+              style={{
+                width: "100%",
+                padding: 14,
+                marginTop: 20,
+                fontSize: 16,
+              }}
+            >
+              Logout
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                window.location.href = "/"
+              }}
+              style={{
+                width: "100%",
+                padding: 14,
+                marginTop: 20,
+                fontSize: 16,
+              }}
+            >
+              Return to Login
+            </button>
+          )}
         </div>
       </div>
     )
@@ -369,7 +365,8 @@ function Admin() {
         minHeight: "100vh",
         padding: 20,
         boxSizing: "border-box",
-        fontFamily: "Arial, sans-serif",
+        fontFamily:
+          "Arial, sans-serif",
         background: "#fafafa",
       }}
     >
@@ -384,7 +381,8 @@ function Admin() {
         <div
           style={{
             display: "flex",
-            justifyContent: "space-between",
+            justifyContent:
+              "space-between",
             alignItems: "center",
             gap: 15,
             marginBottom: 30,
@@ -412,7 +410,8 @@ function Admin() {
           <button
             onClick={logout}
             style={{
-              padding: "10px 18px",
+              padding:
+                "10px 18px",
               fontSize: 15,
             }}
           >
@@ -424,7 +423,8 @@ function Admin() {
 
         <div
           style={{
-            border: "1px solid #ddd",
+            border:
+              "1px solid #ddd",
             borderRadius: 12,
             padding: 20,
             background: "#fff",
@@ -442,6 +442,15 @@ function Admin() {
           <strong>
             {user?.email}
           </strong>
+
+          <p
+            style={{
+              marginBottom: 0,
+              marginTop: 10,
+            }}
+          >
+            Role: <strong>admin</strong>
+          </p>
         </div>
 
         {/* SUMMARY */}
@@ -455,9 +464,12 @@ function Admin() {
             marginBottom: 25,
           }}
         >
+          {/* TOTAL USERS */}
+
           <div
             style={{
-              border: "1px solid #ddd",
+              border:
+                "1px solid #ddd",
               borderRadius: 12,
               padding: 20,
               background: "#fff",
@@ -472,9 +484,12 @@ function Admin() {
             </h2>
           </div>
 
+          {/* TASK BALANCE */}
+
           <div
             style={{
-              border: "1px solid #ddd",
+              border:
+                "1px solid #ddd",
               borderRadius: 12,
               padding: 20,
               background: "#fff",
@@ -488,10 +503,14 @@ function Admin() {
               ₦
               {formatMoney(
                 profiles.reduce(
-                  (total, item) =>
+                  (
+                    total,
+                    item
+                  ) =>
                     total +
                     Number(
-                      item.task_balance || 0
+                      item.task_balance ||
+                        0
                     ),
                   0
                 )
@@ -499,9 +518,12 @@ function Admin() {
             </h2>
           </div>
 
+          {/* AFFILIATE BALANCE */}
+
           <div
             style={{
-              border: "1px solid #ddd",
+              border:
+                "1px solid #ddd",
               borderRadius: 12,
               padding: 20,
               background: "#fff",
@@ -515,7 +537,10 @@ function Admin() {
               ₦
               {formatMoney(
                 profiles.reduce(
-                  (total, item) =>
+                  (
+                    total,
+                    item
+                  ) =>
                     total +
                     Number(
                       item.affiliate_balance ||
@@ -532,7 +557,8 @@ function Admin() {
 
         <div
           style={{
-            border: "1px solid #ddd",
+            border:
+              "1px solid #ddd",
             borderRadius: 12,
             padding: 20,
             background: "#fff",
@@ -543,7 +569,8 @@ function Admin() {
             Users
           </h2>
 
-          {profiles.length === 0 ? (
+          {profiles.length ===
+          0 ? (
             <p>
               No users found.
             </p>
@@ -560,7 +587,8 @@ function Admin() {
                 <tr>
                   <th
                     style={{
-                      textAlign: "left",
+                      textAlign:
+                        "left",
                       padding: 12,
                       borderBottom:
                         "1px solid #ddd",
@@ -571,7 +599,8 @@ function Admin() {
 
                   <th
                     style={{
-                      textAlign: "left",
+                      textAlign:
+                        "left",
                       padding: 12,
                       borderBottom:
                         "1px solid #ddd",
@@ -582,7 +611,8 @@ function Admin() {
 
                   <th
                     style={{
-                      textAlign: "left",
+                      textAlign:
+                        "left",
                       padding: 12,
                       borderBottom:
                         "1px solid #ddd",
@@ -593,7 +623,8 @@ function Admin() {
 
                   <th
                     style={{
-                      textAlign: "left",
+                      textAlign:
+                        "left",
                       padding: 12,
                       borderBottom:
                         "1px solid #ddd",
@@ -657,9 +688,7 @@ function Admin() {
                         }}
                       >
                         {profile.role ||
-                          (profile.is_admin
-                            ? "admin"
-                            : "user")}
+                          "user"}
                       </td>
                     </tr>
                   )
