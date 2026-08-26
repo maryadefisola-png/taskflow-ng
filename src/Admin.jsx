@@ -1152,12 +1152,17 @@ function Admin() {
 
       setWithdrawalMessage("")
 
+      // =================================================
+      // FIX:
+      // PostgreSQL function uses p_withdrawal_id
+      // =================================================
+
       const {
         error,
       } = await supabase.rpc(
         "approve_withdrawal",
         {
-          withdrawal_id:
+          p_withdrawal_id:
             withdrawal.id,
         }
       )
@@ -2276,8 +2281,6 @@ function Admin() {
         {activeSection ===
           "tasks" && (
           <>
-            {/* TASK FORM */}
-
             <div
               style={{
                 ...cardStyle,
@@ -2655,8 +2658,6 @@ function Admin() {
                 </div>
               </form>
             </div>
-
-            {/* TASK LIST */}
 
             <div
               style={
