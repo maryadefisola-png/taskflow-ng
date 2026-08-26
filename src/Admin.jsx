@@ -3,20 +3,76 @@ import { supabase } from "./supabase"
 
 function Admin() {
   const [user, setUser] = useState(null)
+
   const [profiles, setProfiles] = useState([])
   const [withdrawals, setWithdrawals] = useState([])
+  const [tasks, setTasks] = useState([])
+  const [settings, setSettings] = useState(null)
 
   const [loading, setLoading] = useState(true)
-  const [withdrawalsLoading, setWithdrawalsLoading] = useState(false)
+  const [pageMessage, setPageMessage] = useState("")
 
-  const [message, setMessage] = useState("")
-  const [withdrawalMessage, setWithdrawalMessage] = useState("")
+  const [activeSection, setActiveSection] =
+    useState("overview")
+
+  const [withdrawalsLoading, setWithdrawalsLoading] =
+    useState(false)
+
+  const [tasksLoading, setTasksLoading] =
+    useState(false)
+
+  const [settingsLoading, setSettingsLoading] =
+    useState(false)
+
+  const [actionLoading, setActionLoading] =
+    useState(false)
 
   const [processingWithdrawal, setProcessingWithdrawal] =
     useState(null)
 
-  const [activeSection, setActiveSection] =
-    useState("overview")
+  const [withdrawalMessage, setWithdrawalMessage] =
+    useState("")
+
+  const [taskMessage, setTaskMessage] =
+    useState("")
+
+  const [settingsMessage, setSettingsMessage] =
+    useState("")
+
+  // =====================================================
+  // TASK FORM
+  // =====================================================
+
+  const emptyTask = {
+    id: null,
+    title: "",
+    description: "",
+    reward: "",
+    is_active: true,
+    task_type: "",
+    verification_method: "",
+    max_completions: "",
+    starts_at: "",
+    ends_at: "",
+  }
+
+  const [taskForm, setTaskForm] =
+    useState(emptyTask)
+
+  const [editingTask, setEditingTask] =
+    useState(false)
+
+  // =====================================================
+  // SETTINGS FORM
+  // =====================================================
+
+  const [settingsForm, setSettingsForm] =
+    useState({
+      id: null,
+      minimum_deposit: "",
+      minimum_withdrawal: "",
+      referral_percentage: "",
+    })
 
   // =====================================================
   // FORMAT MONEY
@@ -44,7 +100,7 @@ function Admin() {
     const date = new Date(value)
 
     if (Number.isNaN(date.getTime())) {
-      return value
+      return "—"
     }
 
     return date.toLocaleString(
@@ -54,6 +110,104 @@ function Admin() {
         timeStyle: "short",
       }
     )
+  }
+
+  // =====================================================
+  // DATETIME TO INPUT
+  // =====================================================
+
+  const toDateTimeLocal = (value) => {
+    if (!value) {
+      return ""
+    }
+
+    const date = new Date(value)
+
+    if (Number.isNaN(date.getTime())) {
+      return ""
+    }
+
+    const year =
+      date.getFullYear()
+
+    const month =
+      String(
+        date.getMonth() + 1
+      ).padStart(2, "0")
+
+    const day =
+      String(
+        date.getDate()
+      ).padStart(2, "0")
+
+    const hours =
+      String(
+        date.getHours()
+      ).padStart(2, "0")
+
+    const minutes =
+      String(
+        date.getMinutes()
+      ).padStart(2, "0")
+
+    return `${year}-${month}-${day}T${hours}:${minutes}`
+  }
+
+  // =====================================================
+  // STATUS STYLE
+  // =====================================================
+
+  const getStatusStyle = (status) => {
+    const normalized =
+      String(
+        status || ""
+      ).toLowerCase()
+
+    if (normalized === "pending") {
+      return {
+        background: "#fff3cd",
+        color: "#856404",
+        border: "1px solid #ffeeba",
+      }
+    }
+
+    if (
+      normalized === "approved" ||
+      normalized === "processing"
+    ) {
+      return {
+        background: "#cfe2ff",
+        color: "#084298",
+        border: "1px solid #b6d4fe",
+      }
+    }
+
+    if (normalized === "completed") {
+      return {
+        background: "#d1e7dd",
+        color: "#0f5132",
+        border: "1px solid #badbcc",
+      }
+    }
+
+    if (
+      normalized === "refunded" ||
+      normalized === "rejected" ||
+      normalized === "failed" ||
+      normalized === "reversed"
+    ) {
+      return {
+        background: "#f8d7da",
+        color: "#842029",
+        border: "1px solid #f5c2c7",
+      }
+    }
+
+    return {
+      background: "#e2e3e5",
+      color: "#41464b",
+      border: "1px solid #d3d6d8",
+    }
   }
 
   // =====================================================
@@ -90,7 +244,6 @@ function Admin() {
   const loadWithdrawals = async () => {
     try {
       setWithdrawalsLoading(true)
-      setWithdrawalMessage("")
 
       const {
         data,
@@ -102,16 +255,6 @@ function Admin() {
           ascending: false,
         })
 
-      console.log(
-        "WITHDRAWALS:",
-        data
-      )
-
-      console.log(
-        "WITHDRAWALS ERROR:",
-        error
-      )
-
       if (error) {
         console.error(
           "LOAD WITHDRAWALS ERROR:",
@@ -119,7 +262,8 @@ function Admin() {
         )
 
         setWithdrawalMessage(
-          "Unable to load withdrawals. Please check the withdrawals table RLS policy."
+          error.message ||
+            "Unable to load withdrawals."
         )
 
         return
@@ -128,7 +272,7 @@ function Admin() {
       setWithdrawals(data || [])
     } catch (error) {
       console.error(
-        "WITHDRAWALS LOAD ERROR:",
+        "WITHDRAWALS ERROR:",
         error
       )
 
@@ -141,26 +285,110 @@ function Admin() {
   }
 
   // =====================================================
-  // REFRESH DASHBOARD DATA
+  // LOAD TASKS
   // =====================================================
 
-  const refreshDashboard = async () => {
+  const loadTasks = async () => {
     try {
-      setWithdrawalMessage("")
+      setTasksLoading(true)
 
-      await Promise.all([
-        loadProfiles(),
-        loadWithdrawals(),
-      ])
+      const {
+        data,
+        error,
+      } = await supabase
+        .from("tasks")
+        .select("*")
+        .order("created_at", {
+          ascending: false,
+        })
+
+      if (error) {
+        console.error(
+          "LOAD TASKS ERROR:",
+          error
+        )
+
+        setTaskMessage(
+          error.message ||
+            "Unable to load tasks."
+        )
+
+        return
+      }
+
+      setTasks(data || [])
     } catch (error) {
       console.error(
-        "REFRESH DASHBOARD ERROR:",
+        "TASKS ERROR:",
         error
       )
 
-      setMessage(
-        "Unable to refresh dashboard data."
+      setTaskMessage(
+        "Something went wrong while loading tasks."
       )
+    } finally {
+      setTasksLoading(false)
+    }
+  }
+
+  // =====================================================
+  // LOAD SETTINGS
+  // =====================================================
+
+  const loadSettings = async () => {
+    try {
+      setSettingsLoading(true)
+
+      const {
+        data,
+        error,
+      } = await supabase
+        .from("platform_settings")
+        .select("*")
+        .order("id", {
+          ascending: true,
+        })
+        .limit(1)
+        .maybeSingle()
+
+      if (error) {
+        console.error(
+          "LOAD SETTINGS ERROR:",
+          error
+        )
+
+        setSettingsMessage(
+          error.message ||
+            "Unable to load platform settings."
+        )
+
+        return
+      }
+
+      setSettings(data || null)
+
+      if (data) {
+        setSettingsForm({
+          id: data.id,
+          minimum_deposit:
+            data.minimum_deposit ?? "",
+          minimum_withdrawal:
+            data.minimum_withdrawal ?? "",
+          referral_percentage:
+            data.referral_percentage ?? "",
+        })
+      }
+    } catch (error) {
+      console.error(
+        "SETTINGS ERROR:",
+        error
+      )
+
+      setSettingsMessage(
+        "Something went wrong while loading settings."
+      )
+    } finally {
+      setSettingsLoading(false)
     }
   }
 
@@ -174,30 +402,23 @@ function Admin() {
     const initializeAdmin = async () => {
       try {
         setLoading(true)
-        setMessage("")
-
-        // =================================================
-        // GET CURRENT SESSION
-        // =================================================
+        setPageMessage("")
 
         const {
-          data: { session },
+          data: {
+            session,
+          },
           error: sessionError,
         } = await supabase.auth.getSession()
 
-        console.log(
-          "ADMIN SESSION:",
-          session
-        )
-
         if (sessionError) {
           console.error(
-            "ADMIN SESSION ERROR:",
+            "SESSION ERROR:",
             sessionError
           )
 
           if (mounted) {
-            setMessage(
+            setPageMessage(
               "Unable to check your login session."
             )
           }
@@ -205,17 +426,9 @@ function Admin() {
           return
         }
 
-        // =================================================
-        // NO LOGIN SESSION
-        // =================================================
-
         if (!session?.user) {
-          console.log(
-            "NO ADMIN SESSION FOUND"
-          )
-
           if (mounted) {
-            setMessage(
+            setPageMessage(
               "You must be logged in to access the admin page."
             )
           }
@@ -223,24 +436,10 @@ function Admin() {
           return
         }
 
-        if (!mounted) {
-          return
-        }
-
         setUser(session.user)
 
-        console.log(
-          "ADMIN USER:",
-          session.user.id
-        )
-
-        console.log(
-          "ADMIN EMAIL:",
-          session.user.email
-        )
-
         // =================================================
-        // CHECK ADMIN STATUS
+        // VERIFY ADMIN
         // =================================================
 
         const {
@@ -251,13 +450,8 @@ function Admin() {
         )
 
         console.log(
-          "IS ADMIN RESULT:",
+          "IS ADMIN:",
           adminStatus
-        )
-
-        console.log(
-          "IS ADMIN ERROR:",
-          adminError
         )
 
         if (adminError) {
@@ -267,7 +461,7 @@ function Admin() {
           )
 
           if (mounted) {
-            setMessage(
+            setPageMessage(
               "Unable to verify administrator access."
             )
           }
@@ -275,17 +469,9 @@ function Admin() {
           return
         }
 
-        // =================================================
-        // NOT ADMIN
-        // =================================================
-
         if (adminStatus !== true) {
-          console.log(
-            "ACCESS DENIED"
-          )
-
           if (mounted) {
-            setMessage(
+            setPageMessage(
               "Access denied. This account is not an administrator."
             )
           }
@@ -293,17 +479,15 @@ function Admin() {
           return
         }
 
-        console.log(
-          "ADMIN ACCESS CONFIRMED"
-        )
-
         // =================================================
-        // LOAD DASHBOARD
+        // LOAD EVERYTHING
         // =================================================
 
         await Promise.all([
           loadProfiles(),
           loadWithdrawals(),
+          loadTasks(),
+          loadSettings(),
         ])
       } catch (error) {
         console.error(
@@ -312,7 +496,7 @@ function Admin() {
         )
 
         if (mounted) {
-          setMessage(
+          setPageMessage(
             "Something went wrong while loading the admin dashboard."
           )
         }
@@ -348,31 +532,594 @@ function Admin() {
   }
 
   // =====================================================
+  // REFRESH EVERYTHING
+  // =====================================================
+
+  const refreshDashboard = async () => {
+    try {
+      await Promise.all([
+        loadProfiles(),
+        loadWithdrawals(),
+        loadTasks(),
+        loadSettings(),
+      ])
+    } catch (error) {
+      console.error(
+        "REFRESH ERROR:",
+        error
+      )
+    }
+  }
+
+  // =====================================================
+  // TASK FORM CHANGE
+  // =====================================================
+
+  const handleTaskChange = (
+    event
+  ) => {
+    const {
+      name,
+      value,
+      type,
+      checked,
+    } = event.target
+
+    setTaskForm((previous) => ({
+      ...previous,
+      [name]:
+        type === "checkbox"
+          ? checked
+          : value,
+    }))
+  }
+
+  // =====================================================
+  // RESET TASK FORM
+  // =====================================================
+
+  const resetTaskForm = () => {
+    setTaskForm(
+      emptyTask
+    )
+
+    setEditingTask(false)
+  }
+
+  // =====================================================
+  // EDIT TASK
+  // =====================================================
+
+  const startEditTask = (
+    task
+  ) => {
+    setTaskMessage("")
+
+    setTaskForm({
+      id: task.id,
+      title: task.title || "",
+      description:
+        task.description || "",
+      reward:
+        task.reward ?? "",
+      is_active:
+        task.is_active !== false,
+      task_type:
+        task.task_type || "",
+      verification_method:
+        task.verification_method || "",
+      max_completions:
+        task.max_completions ?? "",
+      starts_at:
+        toDateTimeLocal(
+          task.starts_at
+        ),
+      ends_at:
+        toDateTimeLocal(
+          task.ends_at
+        ),
+    })
+
+    setEditingTask(true)
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    })
+  }
+
+  // =====================================================
+  // SAVE TASK
+  // =====================================================
+
+  const saveTask = async (
+    event
+  ) => {
+    event.preventDefault()
+
+    setTaskMessage("")
+
+    if (
+      !taskForm.title.trim()
+    ) {
+      setTaskMessage(
+        "Task title is required."
+      )
+
+      return
+    }
+
+    const reward =
+      Number(
+        taskForm.reward
+      )
+
+    if (
+      !Number.isFinite(
+        reward
+      ) ||
+      reward < 0
+    ) {
+      setTaskMessage(
+        "Enter a valid task reward."
+      )
+
+      return
+    }
+
+    let maxCompletions =
+      null
+
+    if (
+      taskForm.max_completions !==
+        "" &&
+      taskForm.max_completions !==
+        null
+    ) {
+      maxCompletions =
+        Number(
+          taskForm.max_completions
+        )
+
+      if (
+        !Number.isInteger(
+          maxCompletions
+        ) ||
+        maxCompletions < 1
+      ) {
+        setTaskMessage(
+          "Maximum completions must be a whole number greater than 0."
+        )
+
+        return
+      }
+    }
+
+    if (
+      taskForm.starts_at &&
+      taskForm.ends_at
+    ) {
+      const start =
+        new Date(
+          taskForm.starts_at
+        )
+
+      const end =
+        new Date(
+          taskForm.ends_at
+        )
+
+      if (
+        end <= start
+      ) {
+        setTaskMessage(
+          "End date/time must be after the start date/time."
+        )
+
+        return
+      }
+    }
+
+    try {
+      setActionLoading(true)
+
+      const taskData = {
+        title:
+          taskForm.title.trim(),
+
+        description:
+          taskForm.description.trim() ||
+          null,
+
+        reward,
+
+        is_active:
+          taskForm.is_active,
+
+        task_type:
+          taskForm.task_type.trim() ||
+          null,
+
+        verification_method:
+          taskForm.verification_method.trim() ||
+          null,
+
+        max_completions:
+          maxCompletions,
+
+        starts_at:
+          taskForm.starts_at
+            ? new Date(
+                taskForm.starts_at
+              ).toISOString()
+            : null,
+
+        ends_at:
+          taskForm.ends_at
+            ? new Date(
+                taskForm.ends_at
+              ).toISOString()
+            : null,
+      }
+
+      if (editingTask) {
+        const {
+          error,
+        } = await supabase
+          .from("tasks")
+          .update(taskData)
+          .eq(
+            "id",
+            taskForm.id
+          )
+
+        if (error) {
+          throw error
+        }
+
+        setTaskMessage(
+          "Task updated successfully."
+        )
+      } else {
+        const {
+          error,
+        } = await supabase
+          .from("tasks")
+          .insert(
+            taskData
+          )
+
+        if (error) {
+          throw error
+        }
+
+        setTaskMessage(
+          "Task created successfully."
+        )
+      }
+
+      resetTaskForm()
+
+      await loadTasks()
+    } catch (error) {
+      console.error(
+        "SAVE TASK ERROR:",
+        error
+      )
+
+      setTaskMessage(
+        error.message ||
+          "Unable to save task."
+      )
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  // =====================================================
+  // TOGGLE TASK
+  // =====================================================
+
+  const toggleTask = async (
+    task
+  ) => {
+    const nextStatus =
+      !task.is_active
+
+    const confirmed =
+      window.confirm(
+        `${nextStatus ? "Activate" : "Deactivate"} this task?\n\n${
+          task.title
+        }`
+      )
+
+    if (!confirmed) {
+      return
+    }
+
+    try {
+      setActionLoading(true)
+      setTaskMessage("")
+
+      const {
+        error,
+      } = await supabase
+        .from("tasks")
+        .update({
+          is_active:
+            nextStatus,
+        })
+        .eq(
+          "id",
+          task.id
+        )
+
+      if (error) {
+        throw error
+      }
+
+      setTaskMessage(
+        `Task ${
+          nextStatus
+            ? "activated"
+            : "deactivated"
+        } successfully.`
+      )
+
+      await loadTasks()
+    } catch (error) {
+      console.error(
+        "TOGGLE TASK ERROR:",
+        error
+      )
+
+      setTaskMessage(
+        error.message ||
+          "Unable to change task status."
+      )
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  // =====================================================
+  // DELETE TASK
+  // =====================================================
+
+  const deleteTask = async (
+    task
+  ) => {
+    const confirmed =
+      window.confirm(
+        `Delete this task permanently?\n\n${task.title}\n\nThis action cannot be undone.`
+      )
+
+    if (!confirmed) {
+      return
+    }
+
+    try {
+      setActionLoading(true)
+      setTaskMessage("")
+
+      const {
+        error,
+      } = await supabase
+        .from("tasks")
+        .delete()
+        .eq(
+          "id",
+          task.id
+        )
+
+      if (error) {
+        throw error
+      }
+
+      setTaskMessage(
+        "Task deleted successfully."
+      )
+
+      if (
+        taskForm.id ===
+        task.id
+      ) {
+        resetTaskForm()
+      }
+
+      await loadTasks()
+    } catch (error) {
+      console.error(
+        "DELETE TASK ERROR:",
+        error
+      )
+
+      setTaskMessage(
+        error.message ||
+          "Unable to delete task."
+      )
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  // =====================================================
+  // SETTINGS CHANGE
+  // =====================================================
+
+  const handleSettingsChange = (
+    event
+  ) => {
+    const {
+      name,
+      value,
+    } = event.target
+
+    setSettingsForm(
+      (previous) => ({
+        ...previous,
+        [name]:
+          value,
+      })
+    )
+  }
+
+  // =====================================================
+  // SAVE SETTINGS
+  // =====================================================
+
+  const saveSettings = async (
+    event
+  ) => {
+    event.preventDefault()
+
+    setSettingsMessage("")
+
+    const minimumDeposit =
+      Number(
+        settingsForm.minimum_deposit
+      )
+
+    const minimumWithdrawal =
+      Number(
+        settingsForm.minimum_withdrawal
+      )
+
+    const referralPercentage =
+      Number(
+        settingsForm.referral_percentage
+      )
+
+    if (
+      !Number.isFinite(
+        minimumDeposit
+      ) ||
+      minimumDeposit < 0
+    ) {
+      setSettingsMessage(
+        "Enter a valid minimum deposit."
+      )
+
+      return
+    }
+
+    if (
+      !Number.isFinite(
+        minimumWithdrawal
+      ) ||
+      minimumWithdrawal < 0
+    ) {
+      setSettingsMessage(
+        "Enter a valid minimum withdrawal."
+      )
+
+      return
+    }
+
+    if (
+      !Number.isFinite(
+        referralPercentage
+      ) ||
+      referralPercentage < 0 ||
+      referralPercentage > 100
+    ) {
+      setSettingsMessage(
+        "Referral percentage must be between 0 and 100."
+      )
+
+      return
+    }
+
+    try {
+      setActionLoading(true)
+
+      const values = {
+        minimum_deposit:
+          minimumDeposit,
+
+        minimum_withdrawal:
+          minimumWithdrawal,
+
+        referral_percentage:
+          referralPercentage,
+
+        updated_at:
+          new Date().toISOString(),
+      }
+
+      let result
+
+      if (
+        settingsForm.id !==
+        null
+      ) {
+        result =
+          await supabase
+            .from(
+              "platform_settings"
+            )
+            .update(values)
+            .eq(
+              "id",
+              settingsForm.id
+            )
+      } else {
+        result =
+          await supabase
+            .from(
+              "platform_settings"
+            )
+            .insert(values)
+      }
+
+      if (result.error) {
+        throw result.error
+      }
+
+      setSettingsMessage(
+        "Platform settings updated successfully."
+      )
+
+      await loadSettings()
+    } catch (error) {
+      console.error(
+        "SAVE SETTINGS ERROR:",
+        error
+      )
+
+      setSettingsMessage(
+        error.message ||
+          "Unable to update platform settings."
+      )
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  // =====================================================
   // APPROVE WITHDRAWAL
   // =====================================================
 
   const approveWithdrawal = async (
     withdrawal
   ) => {
-    if (!withdrawal?.id) {
-      return
-    }
-
     if (
+      !withdrawal?.id ||
       processingWithdrawal ===
-      withdrawal.id
+        withdrawal.id
     ) {
       return
     }
 
-    const currentStatus =
+    const status =
       String(
-        withdrawal.status || ""
+        withdrawal.status ||
+          ""
       ).toLowerCase()
 
     if (
-      currentStatus !==
-        "pending"
+      status !==
+      "pending"
     ) {
       setWithdrawalMessage(
         "This withdrawal is no longer pending."
@@ -391,7 +1138,7 @@ function Admin() {
         }\nBank: ${
           withdrawal.bank_name ||
           "Unknown"
-        }\n\nThis will execute the secured approve_withdrawal function.`
+        }`
       )
 
     if (!confirmed) {
@@ -405,13 +1152,7 @@ function Admin() {
 
       setWithdrawalMessage("")
 
-      console.log(
-        "APPROVING WITHDRAWAL:",
-        withdrawal.id
-      )
-
       const {
-        data,
         error,
       } = await supabase.rpc(
         "approve_withdrawal",
@@ -421,50 +1162,27 @@ function Admin() {
         }
       )
 
-      console.log(
-        "APPROVE RESULT:",
-        data
-      )
-
-      console.log(
-        "APPROVE ERROR:",
-        error
-      )
-
       if (error) {
-        console.error(
-          "APPROVE WITHDRAWAL ERROR:",
-          error
-        )
-
-        setWithdrawalMessage(
-          error.message ||
-            "Unable to approve withdrawal."
-        )
-
-        return
+        throw error
       }
 
       setWithdrawalMessage(
         "Withdrawal approved successfully."
       )
 
-      // Refresh everything because
-      // approval may affect withdrawal
-      // status and user balances.
       await Promise.all([
         loadWithdrawals(),
         loadProfiles(),
       ])
     } catch (error) {
       console.error(
-        "APPROVE WITHDRAWAL EXCEPTION:",
+        "APPROVE WITHDRAWAL ERROR:",
         error
       )
 
       setWithdrawalMessage(
-        error?.message ||
-          "Something went wrong while approving the withdrawal."
+        error.message ||
+          "Unable to approve withdrawal."
       )
     } finally {
       setProcessingWithdrawal(
@@ -474,34 +1192,32 @@ function Admin() {
   }
 
   // =====================================================
-  // REFUND / REJECT WITHDRAWAL
+  // REFUND WITHDRAWAL
   // =====================================================
 
   const refundWithdrawal = async (
     withdrawal
   ) => {
-    if (!withdrawal?.id) {
-      return
-    }
-
     if (
+      !withdrawal?.id ||
       processingWithdrawal ===
-      withdrawal.id
+        withdrawal.id
     ) {
       return
     }
 
-    const currentStatus =
+    const status =
       String(
-        withdrawal.status || ""
+        withdrawal.status ||
+          ""
       ).toLowerCase()
 
     if (
-      currentStatus !==
+      status !==
       "pending"
     ) {
       setWithdrawalMessage(
-        "This withdrawal is no longer pending and cannot be refunded from this action."
+        "This withdrawal is no longer pending."
       )
 
       return
@@ -523,7 +1239,7 @@ function Admin() {
 
     if (!cleanReason) {
       setWithdrawalMessage(
-        "A refund/rejection reason is required."
+        "A reason is required."
       )
 
       return
@@ -533,7 +1249,7 @@ function Admin() {
       window.confirm(
         `Reject/refund this withdrawal?\n\nAmount: ₦${formatMoney(
           withdrawal.amount
-        )}\nReason: ${cleanReason}\n\nThe secured refund_withdrawal function will be called and the user's balance should be restored according to your database function.`
+        )}\nReason: ${cleanReason}`
       )
 
     if (!confirmed) {
@@ -547,51 +1263,24 @@ function Admin() {
 
       setWithdrawalMessage("")
 
-      console.log(
-        "REFUNDING WITHDRAWAL:",
-        withdrawal.id
-      )
-
       const {
-        data,
         error,
       } = await supabase.rpc(
         "refund_withdrawal",
         {
           withdrawal_id:
             withdrawal.id,
-
           reason:
             cleanReason,
         }
       )
 
-      console.log(
-        "REFUND RESULT:",
-        data
-      )
-
-      console.log(
-        "REFUND ERROR:",
-        error
-      )
-
       if (error) {
-        console.error(
-          "REFUND WITHDRAWAL ERROR:",
-          error
-        )
-
-        setWithdrawalMessage(
-          error.message ||
-            "Unable to refund withdrawal."
-        )
-
-        return
+        throw error
       }
 
       setWithdrawalMessage(
-        "Withdrawal rejected/refunded successfully. User balance has been refreshed."
+        "Withdrawal rejected/refunded successfully."
       )
 
       await Promise.all([
@@ -600,13 +1289,13 @@ function Admin() {
       ])
     } catch (error) {
       console.error(
-        "REFUND WITHDRAWAL EXCEPTION:",
+        "REFUND WITHDRAWAL ERROR:",
         error
       )
 
       setWithdrawalMessage(
-        error?.message ||
-          "Something went wrong while refunding the withdrawal."
+        error.message ||
+          "Unable to refund withdrawal."
       )
     } finally {
       setProcessingWithdrawal(
@@ -616,70 +1305,27 @@ function Admin() {
   }
 
   // =====================================================
-  // WITHDRAWAL COUNTS
+  // SUMMARY
   // =====================================================
 
   const pendingWithdrawals =
     withdrawals.filter(
-      (withdrawal) =>
+      (item) =>
         String(
-          withdrawal.status || ""
+          item.status || ""
         ).toLowerCase() ===
         "pending"
-    )
-
-  const approvedWithdrawals =
-    withdrawals.filter(
-      (withdrawal) =>
-        String(
-          withdrawal.status || ""
-        ).toLowerCase() ===
-          "approved" ||
-        String(
-          withdrawal.status || ""
-        ).toLowerCase() ===
-          "processing"
-    )
-
-  const completedWithdrawals =
-    withdrawals.filter(
-      (withdrawal) =>
-        String(
-          withdrawal.status || ""
-        ).toLowerCase() ===
-        "completed"
-    )
-
-  const refundedWithdrawals =
-    withdrawals.filter(
-      (withdrawal) => {
-        const status =
-          String(
-            withdrawal.status || ""
-          ).toLowerCase()
-
-        return (
-          status ===
-            "refunded" ||
-          status ===
-            "rejected" ||
-          status ===
-            "failed" ||
-          status ===
-            "reversed"
-        )
-      }
     )
 
   const pendingWithdrawalAmount =
     pendingWithdrawals.reduce(
       (
         total,
-        withdrawal
+        item
       ) =>
         total +
         Number(
-          withdrawal.amount || 0
+          item.amount || 0
         ),
       0
     )
@@ -688,11 +1334,11 @@ function Admin() {
     withdrawals.reduce(
       (
         total,
-        withdrawal
+        item
       ) =>
         total +
         Number(
-          withdrawal.amount || 0
+          item.amount || 0
         ),
       0
     )
@@ -725,91 +1371,11 @@ function Admin() {
       0
     )
 
-  // =====================================================
-  // STATUS DISPLAY
-  // =====================================================
-
-  const getStatusStyle = (
-    status
-  ) => {
-    const normalized =
-      String(
-        status || ""
-      ).toLowerCase()
-
-    if (
-      normalized ===
-        "pending"
-    ) {
-      return {
-        background:
-          "#fff3cd",
-        color:
-          "#856404",
-        border:
-          "1px solid #ffeeba",
-      }
-    }
-
-    if (
-      normalized ===
-        "approved" ||
-      normalized ===
-        "processing"
-    ) {
-      return {
-        background:
-          "#cfe2ff",
-        color:
-          "#084298",
-        border:
-          "1px solid #b6d4fe",
-      }
-    }
-
-    if (
-      normalized ===
-      "completed"
-    ) {
-      return {
-        background:
-          "#d1e7dd",
-        color:
-          "#0f5132",
-        border:
-          "1px solid #badbcc",
-      }
-    }
-
-    if (
-      normalized ===
-        "refunded" ||
-      normalized ===
-        "rejected" ||
-      normalized ===
-        "failed" ||
-      normalized ===
-        "reversed"
-    ) {
-      return {
-        background:
-          "#f8d7da",
-        color:
-          "#842029",
-        border:
-          "1px solid #f5c2c7",
-      }
-    }
-
-    return {
-      background:
-        "#e2e3e5",
-      color:
-        "#41464b",
-      border:
-        "1px solid #d3d6d8",
-    }
-  }
+  const activeTasks =
+    tasks.filter(
+      (task) =>
+        task.is_active
+    )
 
   // =====================================================
   // LOADING
@@ -823,15 +1389,14 @@ function Admin() {
             "100vh",
           display:
             "flex",
-          justifyContent:
-            "center",
           alignItems:
+            "center",
+          justifyContent:
             "center",
           fontFamily:
             "Arial, sans-serif",
-          padding: 20,
-          boxSizing:
-            "border-box",
+          padding:
+            20,
         }}
       >
         <div
@@ -856,7 +1421,7 @@ function Admin() {
   // ACCESS DENIED
   // =====================================================
 
-  if (message) {
+  if (pageMessage) {
     return (
       <div
         style={{
@@ -864,17 +1429,16 @@ function Admin() {
             "100vh",
           display:
             "flex",
-          justifyContent:
-            "center",
           alignItems:
             "center",
-          padding: 20,
-          boxSizing:
-            "border-box",
-          fontFamily:
-            "Arial, sans-serif",
+          justifyContent:
+            "center",
+          padding:
+            20,
           background:
             "#fafafa",
+          fontFamily:
+            "Arial, sans-serif",
         }}
       >
         <div
@@ -883,16 +1447,14 @@ function Admin() {
               "100%",
             maxWidth:
               500,
+            background:
+              "#fff",
             border:
               "1px solid #ddd",
             borderRadius:
               16,
             padding:
               25,
-            boxSizing:
-              "border-box",
-            background:
-              "#fff",
           }}
         >
           <h1>
@@ -905,19 +1467,17 @@ function Admin() {
 
           <div
             style={{
-              marginTop:
-                20,
               padding:
                 15,
-              borderRadius:
-                10,
+              marginTop:
+                20,
               background:
                 "#f3f3f3",
-              lineHeight:
-                1.5,
+              borderRadius:
+                10,
             }}
           >
-            {message}
+            {pageMessage}
           </div>
 
           <button
@@ -928,12 +1488,10 @@ function Admin() {
             style={{
               width:
                 "100%",
-              padding:
-                14,
               marginTop:
                 20,
-              fontSize:
-                16,
+              padding:
+                14,
               cursor:
                 "pointer",
             }}
@@ -949,12 +1507,10 @@ function Admin() {
               style={{
                 width:
                   "100%",
-                padding:
-                  14,
                 marginTop:
                   10,
-                fontSize:
-                  16,
+                padding:
+                  14,
                 cursor:
                   "pointer",
               }}
@@ -968,6 +1524,79 @@ function Admin() {
   }
 
   // =====================================================
+  // SHARED CARD STYLE
+  // =====================================================
+
+  const cardStyle = {
+    background:
+      "#fff",
+    border:
+      "1px solid #ddd",
+    borderRadius:
+      12,
+    padding:
+      20,
+  }
+
+  const inputStyle = {
+    width:
+      "100%",
+    padding:
+      "11px 12px",
+    border:
+      "1px solid #ccc",
+    borderRadius:
+      8,
+    boxSizing:
+      "border-box",
+    fontSize:
+      15,
+  }
+
+  const labelStyle = {
+    display:
+      "block",
+    marginBottom:
+      6,
+    fontWeight:
+      "bold",
+    fontSize:
+      14,
+  }
+
+  const primaryButton = {
+    padding:
+      "11px 16px",
+    border:
+      "none",
+    borderRadius:
+      8,
+    background:
+      "#111",
+    color:
+      "#fff",
+    cursor:
+      "pointer",
+    fontWeight:
+      "bold",
+  }
+
+  const secondaryButton = {
+    padding:
+      "10px 14px",
+    border:
+      "1px solid #ccc",
+    borderRadius:
+      8,
+    background:
+      "#fff",
+    color:
+      "#111",
+    cursor:
+      "pointer",
+  }
+
+  // =====================================================
   // DASHBOARD
   // =====================================================
 
@@ -976,20 +1605,20 @@ function Admin() {
       style={{
         minHeight:
           "100vh",
+        background:
+          "#fafafa",
+        fontFamily:
+          "Arial, sans-serif",
         padding:
           20,
         boxSizing:
           "border-box",
-        fontFamily:
-          "Arial, sans-serif",
-        background:
-          "#fafafa",
       }}
     >
       <div
         style={{
           maxWidth:
-            1300,
+            1400,
           margin:
             "0 auto",
         }}
@@ -1007,19 +1636,19 @@ function Admin() {
               "space-between",
             alignItems:
               "center",
+            flexWrap:
+              "wrap",
             gap:
               15,
             marginBottom:
               20,
-            flexWrap:
-              "wrap",
           }}
         >
           <div>
             <h1
               style={{
-                marginBottom:
-                  5,
+                margin:
+                  "0 0 5px",
               }}
             >
               TaskFlow NG
@@ -1027,9 +1656,7 @@ function Admin() {
 
             <p
               style={{
-                marginTop:
-                  0,
-                marginBottom:
+                margin:
                   0,
                 color:
                   "#666",
@@ -1043,14 +1670,9 @@ function Admin() {
             onClick={
               logout
             }
-            style={{
-              padding:
-                "10px 18px",
-              fontSize:
-                15,
-              cursor:
-                "pointer",
-            }}
+            style={
+              secondaryButton
+            }
           >
             Logout
           </button>
@@ -1064,143 +1686,95 @@ function Admin() {
           style={{
             display:
               "flex",
-            gap:
-              10,
             flexWrap:
               "wrap",
+            gap:
+              8,
             marginBottom:
               25,
           }}
         >
-          <button
-            onClick={() =>
-              setActiveSection(
-                "overview"
-              )
-            }
-            style={{
-              padding:
-                "12px 18px",
-              borderRadius:
-                8,
-              border:
-                "1px solid #ccc",
-              background:
-                activeSection ===
-                "overview"
-                  ? "#111"
-                  : "#fff",
-              color:
-                activeSection ===
-                "overview"
-                  ? "#fff"
-                  : "#111",
-              cursor:
-                "pointer",
-            }}
-          >
-            Overview
-          </button>
-
-          <button
-            onClick={() =>
-              setActiveSection(
-                "withdrawals"
-              )
-            }
-            style={{
-              padding:
-                "12px 18px",
-              borderRadius:
-                8,
-              border:
-                "1px solid #ccc",
-              background:
-                activeSection ===
-                "withdrawals"
-                  ? "#111"
-                  : "#fff",
-              color:
-                activeSection ===
-                "withdrawals"
-                  ? "#fff"
-                  : "#111",
-              cursor:
-                "pointer",
-            }}
-          >
-            Withdrawals
-            {pendingWithdrawals.length >
-              0 && (
-              <span
+          {[
+            ["overview", "Overview"],
+            ["users", "Users"],
+            ["tasks", "Tasks"],
+            ["settings", "App Settings"],
+            ["withdrawals", "Withdrawals"],
+          ].map(
+            (item) => (
+              <button
+                key={
+                  item[0]
+                }
+                onClick={() =>
+                  setActiveSection(
+                    item[0]
+                  )
+                }
                 style={{
-                  marginLeft:
-                    8,
-                  background:
-                    "#dc3545",
-                  color:
-                    "#fff",
-                  borderRadius:
-                    20,
                   padding:
-                    "2px 7px",
-                  fontSize:
-                    12,
+                    "11px 16px",
+                  borderRadius:
+                    8,
+                  border:
+                    "1px solid #ccc",
+                  background:
+                    activeSection ===
+                    item[0]
+                      ? "#111"
+                      : "#fff",
+                  color:
+                    activeSection ===
+                    item[0]
+                      ? "#fff"
+                      : "#111",
+                  cursor:
+                    "pointer",
+                  fontWeight:
+                    activeSection ===
+                    item[0]
+                      ? "bold"
+                      : "normal",
                 }}
               >
-                {
-                  pendingWithdrawals.length
-                }
-              </span>
-            )}
-          </button>
+                {item[1]}
 
-          <button
-            onClick={() =>
-              setActiveSection(
-                "users"
-              )
-            }
-            style={{
-              padding:
-                "12px 18px",
-              borderRadius:
-                8,
-              border:
-                "1px solid #ccc",
-              background:
-                activeSection ===
-                "users"
-                  ? "#111"
-                  : "#fff",
-              color:
-                activeSection ===
-                "users"
-                  ? "#fff"
-                  : "#111",
-              cursor:
-                "pointer",
-            }}
-          >
-            Users
-          </button>
+                {item[0] ===
+                  "withdrawals" &&
+                  pendingWithdrawals.length >
+                    0 && (
+                    <span
+                      style={{
+                        marginLeft:
+                          7,
+                        background:
+                          "#dc3545",
+                        color:
+                          "#fff",
+                        padding:
+                          "2px 7px",
+                        borderRadius:
+                          20,
+                        fontSize:
+                          11,
+                      }}
+                    >
+                      {
+                        pendingWithdrawals.length
+                      }
+                    </span>
+                  )}
+              </button>
+            )
+          )}
 
           <button
             onClick={
               refreshDashboard
             }
-            style={{
-              padding:
-                "12px 18px",
-              borderRadius:
-                8,
-              border:
-                "1px solid #ccc",
-              background:
-                "#fff",
-              cursor:
-                "pointer",
-            }}
+            style={
+              secondaryButton
+            }
           >
             Refresh
           </button>
@@ -1212,47 +1786,30 @@ function Admin() {
 
         <div
           style={{
-            border:
-              "1px solid #ddd",
-            borderRadius:
-              12,
-            padding:
-              20,
-            background:
-              "#fff",
+            ...cardStyle,
             marginBottom:
               20,
           }}
         >
-          <p
+          <strong>
+            Admin:
+          </strong>{" "}
+          {user?.email}
+
+          <div
             style={{
               marginTop:
-                0,
-              marginBottom:
-                8,
-            }}
-          >
-            Logged in as admin:
-          </p>
-
-          <strong>
-            {user?.email}
-          </strong>
-
-          <p
-            style={{
+                6,
               fontSize:
-                13,
-              marginBottom:
-                0,
+                12,
               color:
                 "#666",
+              wordBreak:
+                "break-all",
             }}
           >
-            Admin ID:
-            {" "}
             {user?.id}
-          </p>
+          </div>
         </div>
 
         {/* =================================================
@@ -1271,23 +1828,13 @@ function Admin() {
                 gap:
                   15,
                 marginBottom:
-                  25,
+                  20,
               }}
             >
-
-              {/* TOTAL USERS */}
-
               <div
-                style={{
-                  border:
-                    "1px solid #ddd",
-                  borderRadius:
-                    12,
-                  padding:
-                    20,
-                  background:
-                    "#fff",
-                }}
+                style={
+                  cardStyle
+                }
               >
                 <p>
                   Total Users
@@ -1300,19 +1847,10 @@ function Admin() {
                 </h2>
               </div>
 
-              {/* TASK BALANCE */}
-
               <div
-                style={{
-                  border:
-                    "1px solid #ddd",
-                  borderRadius:
-                    12,
-                  padding:
-                    20,
-                  background:
-                    "#fff",
-                }}
+                style={
+                  cardStyle
+                }
               >
                 <p>
                   Total Task Balance
@@ -1326,19 +1864,10 @@ function Admin() {
                 </h2>
               </div>
 
-              {/* AFFILIATE BALANCE */}
-
               <div
-                style={{
-                  border:
-                    "1px solid #ddd",
-                  borderRadius:
-                    12,
-                  padding:
-                    20,
-                  background:
-                    "#fff",
-                }}
+                style={
+                  cardStyle
+                }
               >
                 <p>
                   Total Affiliate Balance
@@ -1352,19 +1881,42 @@ function Admin() {
                 </h2>
               </div>
 
-              {/* PENDING WITHDRAWALS */}
+              <div
+                style={
+                  cardStyle
+                }
+              >
+                <p>
+                  Total Tasks
+                </p>
+
+                <h2>
+                  {
+                    tasks.length
+                  }
+                </h2>
+              </div>
 
               <div
-                style={{
-                  border:
-                    "1px solid #ddd",
-                  borderRadius:
-                    12,
-                  padding:
-                    20,
-                  background:
-                    "#fff",
-                }}
+                style={
+                  cardStyle
+                }
+              >
+                <p>
+                  Active Tasks
+                </p>
+
+                <h2>
+                  {
+                    activeTasks.length
+                  }
+                </h2>
+              </div>
+
+              <div
+                style={
+                  cardStyle
+                }
               >
                 <p>
                   Pending Withdrawals
@@ -1377,19 +1929,10 @@ function Admin() {
                 </h2>
               </div>
 
-              {/* PENDING AMOUNT */}
-
               <div
-                style={{
-                  border:
-                    "1px solid #ddd",
-                  borderRadius:
-                    12,
-                  padding:
-                    20,
-                  background:
-                    "#fff",
-                }}
+                style={
+                  cardStyle
+                }
               >
                 <p>
                   Pending Withdrawal Amount
@@ -1403,19 +1946,10 @@ function Admin() {
                 </h2>
               </div>
 
-              {/* TOTAL WITHDRAWALS */}
-
               <div
-                style={{
-                  border:
-                    "1px solid #ddd",
-                  borderRadius:
-                    12,
-                  padding:
-                    20,
-                  background:
-                    "#fff",
-                }}
+                style={
+                  cardStyle
+                }
               >
                 <p>
                   Total Withdrawal Amount
@@ -1430,98 +1964,325 @@ function Admin() {
               </div>
             </div>
 
-            {/* WITHDRAWAL STATUS SUMMARY */}
-
             <div
-              style={{
-                border:
-                  "1px solid #ddd",
-                borderRadius:
-                  12,
-                padding:
-                  20,
-                background:
-                  "#fff",
-                marginBottom:
-                  25,
-              }}
+              style={
+                cardStyle
+              }
             >
               <h2>
-                Withdrawal Summary
+                Quick Management
               </h2>
 
               <div
                 style={{
                   display:
-                    "grid",
-                  gridTemplateColumns:
-                    "repeat(auto-fit, minmax(160px, 1fr))",
+                    "flex",
+                  flexWrap:
+                    "wrap",
                   gap:
-                    15,
+                    10,
                 }}
               >
-                <div>
-                  <strong>
-                    Pending
-                  </strong>
+                <button
+                  onClick={() =>
+                    setActiveSection(
+                      "tasks"
+                    )
+                  }
+                  style={
+                    primaryButton
+                  }
+                >
+                  Manage Tasks
+                </button>
 
-                  <div>
-                    {
-                      pendingWithdrawals.length
-                    }
-                  </div>
-                </div>
+                <button
+                  onClick={() =>
+                    setActiveSection(
+                      "settings"
+                    )
+                  }
+                  style={
+                    secondaryButton
+                  }
+                >
+                  App Settings
+                </button>
 
-                <div>
-                  <strong>
-                    Approved / Processing
-                  </strong>
+                <button
+                  onClick={() =>
+                    setActiveSection(
+                      "withdrawals"
+                    )
+                  }
+                  style={
+                    secondaryButton
+                  }
+                >
+                  Manage Withdrawals
+                </button>
 
-                  <div>
-                    {
-                      approvedWithdrawals.length
-                    }
-                  </div>
-                </div>
-
-                <div>
-                  <strong>
-                    Completed
-                  </strong>
-
-                  <div>
-                    {
-                      completedWithdrawals.length
-                    }
-                  </div>
-                </div>
-
-                <div>
-                  <strong>
-                    Refunded / Failed
-                  </strong>
-
-                  <div>
-                    {
-                      refundedWithdrawals.length
-                    }
-                  </div>
-                </div>
+                <button
+                  onClick={() =>
+                    setActiveSection(
+                      "users"
+                    )
+                  }
+                  style={
+                    secondaryButton
+                  }
+                >
+                  View Users
+                </button>
               </div>
             </div>
+          </>
+        )}
 
-            {/* RECENT WITHDRAWALS */}
+        {/* =================================================
+            USERS
+        ================================================= */}
+
+        {activeSection ===
+          "users" && (
+          <div
+            style={
+              cardStyle
+            }
+          >
+            <div
+              style={{
+                display:
+                  "flex",
+                justifyContent:
+                  "space-between",
+                alignItems:
+                  "center",
+                flexWrap:
+                  "wrap",
+                gap:
+                  10,
+              }}
+            >
+              <div>
+                <h2>
+                  Users
+                </h2>
+
+                <p
+                  style={{
+                    color:
+                      "#666",
+                  }}
+                >
+                  {
+                    profiles.length
+                  }{" "}
+                  registered user
+                  {profiles.length ===
+                  1
+                    ? ""
+                    : "s"}
+                </p>
+              </div>
+
+              <button
+                onClick={
+                  loadProfiles
+                }
+                style={
+                  secondaryButton
+                }
+              >
+                Refresh
+              </button>
+            </div>
+
+            {profiles.length ===
+            0 ? (
+              <p>
+                No users found.
+              </p>
+            ) : (
+              <div
+                style={{
+                  overflowX:
+                    "auto",
+                }}
+              >
+                <table
+                  style={{
+                    width:
+                      "100%",
+                    borderCollapse:
+                      "collapse",
+                    minWidth:
+                      1000,
+                  }}
+                >
+                  <thead>
+                    <tr>
+                      {[
+                        "Name",
+                        "User ID",
+                        "Task Balance",
+                        "Affiliate Balance",
+                        "Role",
+                        "Status",
+                        "Referral Code",
+                      ].map(
+                        (heading) => (
+                          <th
+                            key={
+                              heading
+                            }
+                            style={{
+                              textAlign:
+                                "left",
+                              padding:
+                                12,
+                              borderBottom:
+                                "1px solid #ddd",
+                              whiteSpace:
+                                "nowrap",
+                            }}
+                          >
+                            {
+                              heading
+                            }
+                          </th>
+                        )
+                      )}
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {profiles.map(
+                      (
+                        profile
+                      ) => (
+                        <tr
+                          key={
+                            profile.id
+                          }
+                        >
+                          <td
+                            style={{
+                              padding:
+                                12,
+                              borderBottom:
+                                "1px solid #eee",
+                            }}
+                          >
+                            {profile.full_name ||
+                              "—"}
+                          </td>
+
+                          <td
+                            style={{
+                              padding:
+                                12,
+                              borderBottom:
+                                "1px solid #eee",
+                              fontSize:
+                                11,
+                              wordBreak:
+                                "break-all",
+                            }}
+                          >
+                            {
+                              profile.id
+                            }
+                          </td>
+
+                          <td
+                            style={{
+                              padding:
+                                12,
+                              borderBottom:
+                                "1px solid #eee",
+                            }}
+                          >
+                            ₦
+                            {formatMoney(
+                              profile.task_balance
+                            )}
+                          </td>
+
+                          <td
+                            style={{
+                              padding:
+                                12,
+                              borderBottom:
+                                "1px solid #eee",
+                            }}
+                          >
+                            ₦
+                            {formatMoney(
+                              profile.affiliate_balance
+                            )}
+                          </td>
+
+                          <td
+                            style={{
+                              padding:
+                                12,
+                              borderBottom:
+                                "1px solid #eee",
+                            }}
+                          >
+                            {profile.role ||
+                              "user"}
+                          </td>
+
+                          <td
+                            style={{
+                              padding:
+                                12,
+                              borderBottom:
+                                "1px solid #eee",
+                            }}
+                          >
+                            {profile.is_active
+                              ? "Active"
+                              : "Inactive"}
+                          </td>
+
+                          <td
+                            style={{
+                              padding:
+                                12,
+                              borderBottom:
+                                "1px solid #eee",
+                            }}
+                          >
+                            {profile.referral_code ||
+                              "—"}
+                          </td>
+                        </tr>
+                      )
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* =================================================
+            TASKS
+        ================================================= */}
+
+        {activeSection ===
+          "tasks" && (
+          <>
+            {/* TASK FORM */}
 
             <div
               style={{
-                border:
-                  "1px solid #ddd",
-                borderRadius:
-                  12,
-                padding:
+                ...cardStyle,
+                marginBottom:
                   20,
-                background:
-                  "#fff",
               }}
             >
               <div
@@ -1532,37 +2293,436 @@ function Admin() {
                     "space-between",
                   alignItems:
                     "center",
-                  gap:
-                    10,
                   flexWrap:
                     "wrap",
+                  gap:
+                    10,
                 }}
               >
-                <h2>
-                  Recent Withdrawals
-                </h2>
+                <div>
+                  <h2>
+                    {editingTask
+                      ? "Edit Task"
+                      : "Add New Task"}
+                  </h2>
 
-                <button
-                  onClick={() =>
-                    setActiveSection(
-                      "withdrawals"
-                    )
-                  }
+                  <p
+                    style={{
+                      color:
+                        "#666",
+                    }}
+                  >
+                    {editingTask
+                      ? "Update the selected task."
+                      : "Create a new task for users."}
+                  </p>
+                </div>
+
+                {editingTask && (
+                  <button
+                    type="button"
+                    onClick={
+                      resetTaskForm
+                    }
+                    style={
+                      secondaryButton
+                    }
+                  >
+                    Cancel Edit
+                  </button>
+                )}
+              </div>
+
+              {taskMessage && (
+                <div
                   style={{
                     padding:
-                      "9px 14px",
-                    cursor:
-                      "pointer",
+                      12,
+                    marginBottom:
+                      15,
+                    borderRadius:
+                      8,
+                    background:
+                      "#f3f3f3",
+                    border:
+                      "1px solid #ddd",
                   }}
                 >
-                  Manage Withdrawals
+                  {
+                    taskMessage
+                  }
+                </div>
+              )}
+
+              <form
+                onSubmit={
+                  saveTask
+                }
+              >
+                <div
+                  style={{
+                    display:
+                      "grid",
+                    gridTemplateColumns:
+                      "repeat(auto-fit, minmax(250px, 1fr))",
+                    gap:
+                      15,
+                  }}
+                >
+                  <div>
+                    <label
+                      style={
+                        labelStyle
+                      }
+                    >
+                      Task Title
+                    </label>
+
+                    <input
+                      name="title"
+                      value={
+                        taskForm.title
+                      }
+                      onChange={
+                        handleTaskChange
+                      }
+                      placeholder="e.g. Follow our Instagram page"
+                      style={
+                        inputStyle
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      style={
+                        labelStyle
+                      }
+                    >
+                      Reward
+                    </label>
+
+                    <input
+                      name="reward"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={
+                        taskForm.reward
+                      }
+                      onChange={
+                        handleTaskChange
+                      }
+                      placeholder="100"
+                      style={
+                        inputStyle
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      style={
+                        labelStyle
+                      }
+                    >
+                      Task Type
+                    </label>
+
+                    <input
+                      name="task_type"
+                      value={
+                        taskForm.task_type
+                      }
+                      onChange={
+                        handleTaskChange
+                      }
+                      placeholder="social, website, survey..."
+                      style={
+                        inputStyle
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      style={
+                        labelStyle
+                      }
+                    >
+                      Verification Method
+                    </label>
+
+                    <input
+                      name="verification_method"
+                      value={
+                        taskForm.verification_method
+                      }
+                      onChange={
+                        handleTaskChange
+                      }
+                      placeholder="manual, link, screenshot..."
+                      style={
+                        inputStyle
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      style={
+                        labelStyle
+                      }
+                    >
+                      Maximum Completions
+                    </label>
+
+                    <input
+                      name="max_completions"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={
+                        taskForm.max_completions
+                      }
+                      onChange={
+                        handleTaskChange
+                      }
+                      placeholder="Leave blank for unlimited"
+                      style={
+                        inputStyle
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      style={
+                        labelStyle
+                      }
+                    >
+                      Starts At
+                    </label>
+
+                    <input
+                      name="starts_at"
+                      type="datetime-local"
+                      value={
+                        taskForm.starts_at
+                      }
+                      onChange={
+                        handleTaskChange
+                      }
+                      style={
+                        inputStyle
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      style={
+                        labelStyle
+                      }
+                    >
+                      Ends At
+                    </label>
+
+                    <input
+                      name="ends_at"
+                      type="datetime-local"
+                      value={
+                        taskForm.ends_at
+                      }
+                      onChange={
+                        handleTaskChange
+                      }
+                      style={
+                        inputStyle
+                      }
+                    />
+                  </div>
+
+                  <div
+                    style={{
+                      display:
+                        "flex",
+                      alignItems:
+                        "center",
+                      gap:
+                        10,
+                      paddingTop:
+                        25,
+                    }}
+                  >
+                    <input
+                      id="task-active"
+                      name="is_active"
+                      type="checkbox"
+                      checked={
+                        taskForm.is_active
+                      }
+                      onChange={
+                        handleTaskChange
+                      }
+                    />
+
+                    <label
+                      htmlFor="task-active"
+                    >
+                      Task is active
+                    </label>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    marginTop:
+                      15,
+                  }}
+                >
+                  <label
+                    style={
+                      labelStyle
+                    }
+                  >
+                    Description
+                  </label>
+
+                  <textarea
+                    name="description"
+                    value={
+                      taskForm.description
+                    }
+                    onChange={
+                      handleTaskChange
+                    }
+                    rows="5"
+                    placeholder="Explain exactly what the user needs to do..."
+                    style={{
+                      ...inputStyle,
+                      resize:
+                        "vertical",
+                    }}
+                  />
+                </div>
+
+                <div
+                  style={{
+                    marginTop:
+                      20,
+                    display:
+                      "flex",
+                    gap:
+                      10,
+                    flexWrap:
+                      "wrap",
+                  }}
+                >
+                  <button
+                    type="submit"
+                    disabled={
+                      actionLoading
+                    }
+                    style={{
+                      ...primaryButton,
+                      opacity:
+                        actionLoading
+                          ? 0.6
+                          : 1,
+                    }}
+                  >
+                    {actionLoading
+                      ? "Saving..."
+                      : editingTask
+                      ? "Update Task"
+                      : "Create Task"}
+                  </button>
+
+                  {editingTask && (
+                    <button
+                      type="button"
+                      onClick={
+                        resetTaskForm
+                      }
+                      style={
+                        secondaryButton
+                      }
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              </form>
+            </div>
+
+            {/* TASK LIST */}
+
+            <div
+              style={
+                cardStyle
+              }
+            >
+              <div
+                style={{
+                  display:
+                    "flex",
+                  justifyContent:
+                    "space-between",
+                  alignItems:
+                    "center",
+                  flexWrap:
+                    "wrap",
+                  gap:
+                    10,
+                  marginBottom:
+                    15,
+                }}
+              >
+                <div>
+                  <h2>
+                    Existing Tasks
+                  </h2>
+
+                  <p
+                    style={{
+                      margin:
+                        0,
+                      color:
+                        "#666",
+                    }}
+                  >
+                    {
+                      tasks.length
+                    }{" "}
+                    total task
+                    {tasks.length ===
+                    1
+                      ? ""
+                      : "s"}
+                  </p>
+                </div>
+
+                <button
+                  onClick={
+                    loadTasks
+                  }
+                  style={
+                    secondaryButton
+                  }
+                >
+                  Refresh
                 </button>
               </div>
 
-              {withdrawals.length ===
-              0 ? (
+              {tasksLoading ? (
                 <p>
-                  No withdrawals found.
+                  Loading tasks...
+                </p>
+              ) : tasks.length ===
+                0 ? (
+                <p>
+                  No tasks found.
                 </p>
               ) : (
                 <div
@@ -1578,152 +2738,295 @@ function Admin() {
                       borderCollapse:
                         "collapse",
                       minWidth:
-                        700,
+                        1400,
                     }}
                   >
                     <thead>
                       <tr>
-                        <th
-                          style={{
-                            textAlign:
-                              "left",
-                            padding:
-                              12,
-                            borderBottom:
-                              "1px solid #ddd",
-                          }}
-                        >
-                          User
-                        </th>
-
-                        <th
-                          style={{
-                            textAlign:
-                              "left",
-                            padding:
-                              12,
-                            borderBottom:
-                              "1px solid #ddd",
-                          }}
-                        >
-                          Amount
-                        </th>
-
-                        <th
-                          style={{
-                            textAlign:
-                              "left",
-                            padding:
-                              12,
-                            borderBottom:
-                              "1px solid #ddd",
-                          }}
-                        >
-                          Status
-                        </th>
-
-                        <th
-                          style={{
-                            textAlign:
-                              "left",
-                            padding:
-                              12,
-                            borderBottom:
-                              "1px solid #ddd",
-                          }}
-                        >
-                          Date
-                        </th>
+                        {[
+                          "Title",
+                          "Reward",
+                          "Type",
+                          "Verification",
+                          "Max",
+                          "Starts",
+                          "Ends",
+                          "Status",
+                          "Actions",
+                        ].map(
+                          (
+                            heading
+                          ) => (
+                            <th
+                              key={
+                                heading
+                              }
+                              style={{
+                                textAlign:
+                                  "left",
+                                padding:
+                                  12,
+                                borderBottom:
+                                  "1px solid #ddd",
+                                whiteSpace:
+                                  "nowrap",
+                              }}
+                            >
+                              {
+                                heading
+                              }
+                            </th>
+                          )
+                        )}
                       </tr>
                     </thead>
 
                     <tbody>
-                      {withdrawals
-                        .slice(
-                          0,
-                          10
-                        )
-                        .map(
-                          (
-                            withdrawal
-                          ) => (
-                            <tr
-                              key={
-                                withdrawal.id
-                              }
+                      {tasks.map(
+                        (
+                          task
+                        ) => (
+                          <tr
+                            key={
+                              task.id
+                            }
+                          >
+                            <td
+                              style={{
+                                padding:
+                                  12,
+                                borderBottom:
+                                  "1px solid #eee",
+                                maxWidth:
+                                  300,
+                              }}
                             >
-                              <td
-                                style={{
-                                  padding:
-                                    12,
-                                  borderBottom:
-                                    "1px solid #eee",
-                                }}
-                              >
-                                {withdrawal.full_name ||
-                                  withdrawal.user_id ||
-                                  "—"}
-                              </td>
+                              <strong>
+                                {
+                                  task.title
+                                }
+                              </strong>
 
-                              <td
-                                style={{
-                                  padding:
-                                    12,
-                                  borderBottom:
-                                    "1px solid #eee",
-                                }}
-                              >
-                                ₦
-                                {formatMoney(
-                                  withdrawal.amount
-                                )}
-                              </td>
-
-                              <td
-                                style={{
-                                  padding:
-                                    12,
-                                  borderBottom:
-                                    "1px solid #eee",
-                                }}
-                              >
-                                <span
+                              {task.description && (
+                                <div
                                   style={{
-                                    display:
-                                      "inline-block",
-                                    padding:
-                                      "5px 9px",
-                                    borderRadius:
-                                      20,
+                                    marginTop:
+                                      5,
                                     fontSize:
                                       12,
-                                    fontWeight:
-                                      "bold",
-                                    ...getStatusStyle(
-                                      withdrawal.status
-                                    ),
+                                    color:
+                                      "#666",
                                   }}
                                 >
-                                  {withdrawal.status ||
-                                    "Unknown"}
-                                </span>
-                              </td>
+                                  {
+                                    task.description
+                                  }
+                                </div>
+                              )}
+                            </td>
 
-                              <td
+                            <td
+                              style={{
+                                padding:
+                                  12,
+                                borderBottom:
+                                  "1px solid #eee",
+                                whiteSpace:
+                                  "nowrap",
+                              }}
+                            >
+                              ₦
+                              {formatMoney(
+                                task.reward
+                              )}
+                            </td>
+
+                            <td
+                              style={{
+                                padding:
+                                  12,
+                                borderBottom:
+                                  "1px solid #eee",
+                              }}
+                            >
+                              {
+                                task.task_type ||
+                                "—"
+                              }
+                            </td>
+
+                            <td
+                              style={{
+                                padding:
+                                  12,
+                                borderBottom:
+                                  "1px solid #eee",
+                              }}
+                            >
+                              {
+                                task.verification_method ||
+                                "—"
+                              }
+                            </td>
+
+                            <td
+                              style={{
+                                padding:
+                                  12,
+                                borderBottom:
+                                  "1px solid #eee",
+                              }}
+                            >
+                              {
+                                task.max_completions ??
+                                "Unlimited"
+                              }
+                            </td>
+
+                            <td
+                              style={{
+                                padding:
+                                  12,
+                                borderBottom:
+                                  "1px solid #eee",
+                                whiteSpace:
+                                  "nowrap",
+                              }}
+                            >
+                              {formatDate(
+                                task.starts_at
+                              )}
+                            </td>
+
+                            <td
+                              style={{
+                                padding:
+                                  12,
+                                borderBottom:
+                                  "1px solid #eee",
+                                whiteSpace:
+                                  "nowrap",
+                              }}
+                            >
+                              {formatDate(
+                                task.ends_at
+                              )}
+                            </td>
+
+                            <td
+                              style={{
+                                padding:
+                                  12,
+                                borderBottom:
+                                  "1px solid #eee",
+                              }}
+                            >
+                              <span
                                 style={{
                                   padding:
+                                    "5px 9px",
+                                  borderRadius:
+                                    20,
+                                  background:
+                                    task.is_active
+                                      ? "#d1e7dd"
+                                      : "#f8d7da",
+                                  color:
+                                    task.is_active
+                                      ? "#0f5132"
+                                      : "#842029",
+                                  fontSize:
                                     12,
-                                  borderBottom:
-                                    "1px solid #eee",
+                                  fontWeight:
+                                    "bold",
                                 }}
                               >
-                                {formatDate(
-                                  withdrawal.created_at
-                                )}
-                              </td>
-                            </tr>
-                          )
-                        )}
+                                {task.is_active
+                                  ? "Active"
+                                  : "Inactive"}
+                              </span>
+                            </td>
+
+                            <td
+                              style={{
+                                padding:
+                                  12,
+                                borderBottom:
+                                  "1px solid #eee",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display:
+                                    "flex",
+                                  gap:
+                                    7,
+                                  flexWrap:
+                                    "wrap",
+                                }}
+                              >
+                                <button
+                                  onClick={() =>
+                                    startEditTask(
+                                      task
+                                    )
+                                  }
+                                  style={
+                                    secondaryButton
+                                  }
+                                >
+                                  Edit
+                                </button>
+
+                                <button
+                                  onClick={() =>
+                                    toggleTask(
+                                      task
+                                    )
+                                  }
+                                  disabled={
+                                    actionLoading
+                                  }
+                                  style={
+                                    secondaryButton
+                                  }
+                                >
+                                  {task.is_active
+                                    ? "Deactivate"
+                                    : "Activate"}
+                                </button>
+
+                                <button
+                                  onClick={() =>
+                                    deleteTask(
+                                      task
+                                    )
+                                  }
+                                  disabled={
+                                    actionLoading
+                                  }
+                                  style={{
+                                    padding:
+                                      "10px 14px",
+                                    border:
+                                      "none",
+                                    borderRadius:
+                                      8,
+                                    background:
+                                      "#dc3545",
+                                    color:
+                                      "#fff",
+                                    cursor:
+                                      "pointer",
+                                  }}
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -1733,22 +3036,197 @@ function Admin() {
         )}
 
         {/* =================================================
+            APP SETTINGS
+        ================================================= */}
+
+        {activeSection ===
+          "settings" && (
+          <div
+            style={
+              cardStyle
+            }
+          >
+            <h2>
+              App Settings
+            </h2>
+
+            <p
+              style={{
+                color:
+                  "#666",
+              }}
+            >
+              Change the main financial settings used by the application.
+            </p>
+
+            {settingsMessage && (
+              <div
+                style={{
+                  padding:
+                    12,
+                  marginBottom:
+                    15,
+                  borderRadius:
+                    8,
+                  background:
+                    "#f3f3f3",
+                  border:
+                    "1px solid #ddd",
+                }}
+              >
+                {
+                  settingsMessage
+                }
+              </div>
+            )}
+
+            {settingsLoading ? (
+              <p>
+                Loading settings...
+              </p>
+            ) : (
+              <form
+                onSubmit={
+                  saveSettings
+                }
+              >
+                <div
+                  style={{
+                    display:
+                      "grid",
+                    gridTemplateColumns:
+                      "repeat(auto-fit, minmax(250px, 1fr))",
+                    gap:
+                      15,
+                  }}
+                >
+                  <div>
+                    <label
+                      style={
+                        labelStyle
+                      }
+                    >
+                      Minimum Deposit
+                    </label>
+
+                    <input
+                      name="minimum_deposit"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={
+                        settingsForm.minimum_deposit
+                      }
+                      onChange={
+                        handleSettingsChange
+                      }
+                      style={
+                        inputStyle
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      style={
+                        labelStyle
+                      }
+                    >
+                      Minimum Withdrawal
+                    </label>
+
+                    <input
+                      name="minimum_withdrawal"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={
+                        settingsForm.minimum_withdrawal
+                      }
+                      onChange={
+                        handleSettingsChange
+                      }
+                      style={
+                        inputStyle
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      style={
+                        labelStyle
+                      }
+                    >
+                      Referral Percentage
+                    </label>
+
+                    <input
+                      name="referral_percentage"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      value={
+                        settingsForm.referral_percentage
+                      }
+                      onChange={
+                        handleSettingsChange
+                      }
+                      style={
+                        inputStyle
+                      }
+                    />
+
+                    <small
+                      style={{
+                        display:
+                          "block",
+                        marginTop:
+                          5,
+                        color:
+                          "#666",
+                      }}
+                    >
+                      Enter a percentage from 0 to 100.
+                    </small>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={
+                    actionLoading
+                  }
+                  style={{
+                    ...primaryButton,
+                    marginTop:
+                      20,
+                    opacity:
+                      actionLoading
+                        ? 0.6
+                        : 1,
+                  }}
+                >
+                  {actionLoading
+                    ? "Saving..."
+                    : "Save Settings"}
+                </button>
+              </form>
+            )}
+          </div>
+        )}
+
+        {/* =================================================
             WITHDRAWALS
         ================================================= */}
 
         {activeSection ===
           "withdrawals" && (
           <div
-            style={{
-              border:
-                "1px solid #ddd",
-              borderRadius:
-                12,
-              padding:
-                20,
-              background:
-                "#fff",
-            }}
+            style={
+              cardStyle
+            }
           >
             <div
               style={{
@@ -1758,33 +3236,26 @@ function Admin() {
                   "space-between",
                 alignItems:
                   "center",
-                gap:
-                  15,
                 flexWrap:
                   "wrap",
+                gap:
+                  10,
                 marginBottom:
                   15,
               }}
             >
               <div>
-                <h2
-                  style={{
-                    marginBottom:
-                      5,
-                  }}
-                >
+                <h2>
                   Withdrawals
                 </h2>
 
                 <p
                   style={{
-                    marginTop:
-                      0,
                     color:
                       "#666",
                   }}
                 >
-                  Review and manage user withdrawal requests.
+                  Review and manage withdrawal requests.
                 </p>
               </div>
 
@@ -1792,226 +3263,44 @@ function Admin() {
                 onClick={
                   loadWithdrawals
                 }
-                disabled={
-                  withdrawalsLoading
+                style={
+                  secondaryButton
                 }
-                style={{
-                  padding:
-                    "10px 15px",
-                  cursor:
-                    withdrawalsLoading
-                      ? "not-allowed"
-                      : "pointer",
-                }}
               >
-                {withdrawalsLoading
-                  ? "Refreshing..."
-                  : "Refresh Withdrawals"}
+                Refresh
               </button>
             </div>
-
-            {/* WITHDRAWAL MESSAGE */}
 
             {withdrawalMessage && (
               <div
                 style={{
-                  marginBottom:
-                    20,
                   padding:
-                    14,
+                    12,
+                  marginBottom:
+                    15,
                   borderRadius:
-                    10,
+                    8,
                   background:
                     "#f3f3f3",
                   border:
                     "1px solid #ddd",
-                  lineHeight:
-                    1.5,
                 }}
               >
-                {withdrawalMessage}
+                {
+                  withdrawalMessage
+                }
               </div>
             )}
 
-            {/* WITHDRAWAL SUMMARY */}
-
-            <div
-              style={{
-                display:
-                  "grid",
-                gridTemplateColumns:
-                  "repeat(auto-fit, minmax(170px, 1fr))",
-                gap:
-                  12,
-                marginBottom:
-                  20,
-              }}
-            >
-              <div
-                style={{
-                  padding:
-                    15,
-                  borderRadius:
-                    10,
-                  background:
-                    "#fff3cd",
-                  border:
-                    "1px solid #ffeeba",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize:
-                      13,
-                  }}
-                >
-                  Pending
-                </div>
-
-                <strong
-                  style={{
-                    fontSize:
-                      22,
-                  }}
-                >
-                  {
-                    pendingWithdrawals.length
-                  }
-                </strong>
-              </div>
-
-              <div
-                style={{
-                  padding:
-                    15,
-                  borderRadius:
-                    10,
-                  background:
-                    "#fff3cd",
-                  border:
-                    "1px solid #ffeeba",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize:
-                      13,
-                  }}
-                >
-                  Pending Amount
-                </div>
-
-                <strong
-                  style={{
-                    fontSize:
-                      20,
-                  }}
-                >
-                  ₦
-                  {formatMoney(
-                    pendingWithdrawalAmount
-                  )}
-                </strong>
-              </div>
-
-              <div
-                style={{
-                  padding:
-                    15,
-                  borderRadius:
-                    10,
-                  background:
-                    "#d1e7dd",
-                  border:
-                    "1px solid #badbcc",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize:
-                      13,
-                  }}
-                >
-                  Completed
-                </div>
-
-                <strong
-                  style={{
-                    fontSize:
-                      22,
-                  }}
-                >
-                  {
-                    completedWithdrawals.length
-                  }
-                </strong>
-              </div>
-
-              <div
-                style={{
-                  padding:
-                    15,
-                  borderRadius:
-                    10,
-                  background:
-                    "#f8d7da",
-                  border:
-                    "1px solid #f5c2c7",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize:
-                      13,
-                  }}
-                >
-                  Refunded / Failed
-                </div>
-
-                <strong
-                  style={{
-                    fontSize:
-                      22,
-                  }}
-                >
-                  {
-                    refundedWithdrawals.length
-                  }
-                </strong>
-              </div>
-            </div>
-
-            {/* WITHDRAWAL TABLE */}
-
-            {withdrawalsLoading &&
-            withdrawals.length ===
-              0 ? (
-              <div
-                style={{
-                  padding:
-                    30,
-                  textAlign:
-                    "center",
-                }}
-              >
+            {withdrawalsLoading ? (
+              <p>
                 Loading withdrawals...
-              </div>
+              </p>
             ) : withdrawals.length ===
               0 ? (
-              <div
-                style={{
-                  padding:
-                    30,
-                  textAlign:
-                    "center",
-                  border:
-                    "1px dashed #ccc",
-                  borderRadius:
-                    10,
-                }}
-              >
-                No withdrawal requests found.
-              </div>
+              <p>
+                No withdrawals found.
+              </p>
             ) : (
               <div
                 style={{
@@ -2031,172 +3320,43 @@ function Admin() {
                 >
                   <thead>
                     <tr>
-
-                      <th
-                        style={{
-                          textAlign:
-                            "left",
-                          padding:
-                            12,
-                          borderBottom:
-                            "1px solid #ddd",
-                          whiteSpace:
-                            "nowrap",
-                        }}
-                      >
-                        User Name
-                      </th>
-
-                      <th
-                        style={{
-                          textAlign:
-                            "left",
-                          padding:
-                            12,
-                          borderBottom:
-                            "1px solid #ddd",
-                          whiteSpace:
-                            "nowrap",
-                        }}
-                      >
-                        User ID
-                      </th>
-
-                      <th
-                        style={{
-                          textAlign:
-                            "left",
-                          padding:
-                            12,
-                          borderBottom:
-                            "1px solid #ddd",
-                          whiteSpace:
-                            "nowrap",
-                        }}
-                      >
-                        Amount
-                      </th>
-
-                      <th
-                        style={{
-                          textAlign:
-                            "left",
-                          padding:
-                            12,
-                          borderBottom:
-                            "1px solid #ddd",
-                          whiteSpace:
-                            "nowrap",
-                        }}
-                      >
-                        Balance Type
-                      </th>
-
-                      <th
-                        style={{
-                          textAlign:
-                            "left",
-                          padding:
-                            12,
-                          borderBottom:
-                            "1px solid #ddd",
-                          whiteSpace:
-                            "nowrap",
-                        }}
-                      >
-                        Bank
-                      </th>
-
-                      <th
-                        style={{
-                          textAlign:
-                            "left",
-                          padding:
-                            12,
-                          borderBottom:
-                            "1px solid #ddd",
-                          whiteSpace:
-                            "nowrap",
-                        }}
-                      >
-                        Account Number
-                      </th>
-
-                      <th
-                        style={{
-                          textAlign:
-                            "left",
-                          padding:
-                            12,
-                          borderBottom:
-                            "1px solid #ddd",
-                          whiteSpace:
-                            "nowrap",
-                        }}
-                      >
-                        Account Name
-                      </th>
-
-                      <th
-                        style={{
-                          textAlign:
-                            "left",
-                          padding:
-                            12,
-                          borderBottom:
-                            "1px solid #ddd",
-                          whiteSpace:
-                            "nowrap",
-                        }}
-                      >
-                        Reference
-                      </th>
-
-                      <th
-                        style={{
-                          textAlign:
-                            "left",
-                          padding:
-                            12,
-                          borderBottom:
-                            "1px solid #ddd",
-                          whiteSpace:
-                            "nowrap",
-                        }}
-                      >
-                        Date
-                      </th>
-
-                      <th
-                        style={{
-                          textAlign:
-                            "left",
-                          padding:
-                            12,
-                          borderBottom:
-                            "1px solid #ddd",
-                          whiteSpace:
-                            "nowrap",
-                        }}
-                      >
-                        Status
-                      </th>
-
-                      <th
-                        style={{
-                          textAlign:
-                            "left",
-                          padding:
-                            12,
-                          borderBottom:
-                            "1px solid #ddd",
-                          whiteSpace:
-                            "nowrap",
-                        }}
-                      >
-                        Actions
-                      </th>
-
+                      {[
+                        "User",
+                        "User ID",
+                        "Amount",
+                        "Balance Type",
+                        "Bank",
+                        "Account Number",
+                        "Account Name",
+                        "Reference",
+                        "Date",
+                        "Status",
+                        "Actions",
+                      ].map(
+                        (
+                          heading
+                        ) => (
+                          <th
+                            key={
+                              heading
+                            }
+                            style={{
+                              textAlign:
+                                "left",
+                              padding:
+                                12,
+                              borderBottom:
+                                "1px solid #ddd",
+                              whiteSpace:
+                                "nowrap",
+                            }}
+                          >
+                            {
+                              heading
+                            }
+                          </th>
+                        )
+                      )}
                     </tr>
                   </thead>
 
@@ -2211,11 +3371,11 @@ function Admin() {
                               ""
                           ).toLowerCase()
 
-                        const isPending =
+                        const pending =
                           status ===
                           "pending"
 
-                        const isProcessing =
+                        const processing =
                           processingWithdrawal ===
                           withdrawal.id
 
@@ -2225,26 +3385,19 @@ function Admin() {
                               withdrawal.id
                             }
                           >
-
-                            {/* USER NAME */}
-
                             <td
                               style={{
                                 padding:
                                   12,
                                 borderBottom:
                                   "1px solid #eee",
-                                verticalAlign:
-                                  "top",
                               }}
                             >
-                              <strong>
-                                {withdrawal.full_name ||
-                                  "—"}
-                              </strong>
+                              {
+                                withdrawal.full_name ||
+                                "—"
+                              }
                             </td>
-
-                            {/* USER ID */}
 
                             <td
                               style={{
@@ -2252,12 +3405,8 @@ function Admin() {
                                   12,
                                 borderBottom:
                                   "1px solid #eee",
-                                verticalAlign:
-                                  "top",
                                 fontSize:
                                   11,
-                                maxWidth:
-                                  180,
                                 wordBreak:
                                   "break-all",
                               }}
@@ -2267,16 +3416,12 @@ function Admin() {
                               }
                             </td>
 
-                            {/* AMOUNT */}
-
                             <td
                               style={{
                                 padding:
                                   12,
                                 borderBottom:
                                   "1px solid #eee",
-                                verticalAlign:
-                                  "top",
                                 whiteSpace:
                                   "nowrap",
                               }}
@@ -2289,23 +3434,19 @@ function Admin() {
                               </strong>
                             </td>
 
-                            {/* BALANCE TYPE */}
-
                             <td
                               style={{
                                 padding:
                                   12,
                                 borderBottom:
                                   "1px solid #eee",
-                                verticalAlign:
-                                  "top",
                               }}
                             >
-                              {withdrawal.balance_type ||
-                                "—"}
+                              {
+                                withdrawal.balance_type ||
+                                "—"
+                              }
                             </td>
-
-                            {/* BANK */}
 
                             <td
                               style={{
@@ -2313,15 +3454,13 @@ function Admin() {
                                   12,
                                 borderBottom:
                                   "1px solid #eee",
-                                verticalAlign:
-                                  "top",
                               }}
                             >
-                              {withdrawal.bank_name ||
-                                "—"}
+                              {
+                                withdrawal.bank_name ||
+                                "—"
+                              }
                             </td>
-
-                            {/* ACCOUNT NUMBER */}
 
                             <td
                               style={{
@@ -2329,17 +3468,15 @@ function Admin() {
                                   12,
                                 borderBottom:
                                   "1px solid #eee",
-                                verticalAlign:
-                                  "top",
                                 whiteSpace:
                                   "nowrap",
                               }}
                             >
-                              {withdrawal.account_number ||
-                                "—"}
+                              {
+                                withdrawal.account_number ||
+                                "—"
+                              }
                             </td>
-
-                            {/* ACCOUNT NAME */}
 
                             <td
                               style={{
@@ -2347,17 +3484,13 @@ function Admin() {
                                   12,
                                 borderBottom:
                                   "1px solid #eee",
-                                verticalAlign:
-                                  "top",
-                                whiteSpace:
-                                  "nowrap",
                               }}
                             >
-                              {withdrawal.account_name ||
-                                "—"}
+                              {
+                                withdrawal.account_name ||
+                                "—"
+                              }
                             </td>
-
-                            {/* REFERENCE */}
 
                             <td
                               style={{
@@ -2365,21 +3498,15 @@ function Admin() {
                                   12,
                                 borderBottom:
                                   "1px solid #eee",
-                                verticalAlign:
-                                  "top",
                                 fontSize:
                                   12,
-                                maxWidth:
-                                  180,
-                                wordBreak:
-                                  "break-word",
                               }}
                             >
-                              {withdrawal.payment_reference ||
-                                "—"}
+                              {
+                                withdrawal.payment_reference ||
+                                "—"
+                              }
                             </td>
-
-                            {/* DATE */}
 
                             <td
                               style={{
@@ -2387,8 +3514,6 @@ function Admin() {
                                   12,
                                 borderBottom:
                                   "1px solid #eee",
-                                verticalAlign:
-                                  "top",
                                 whiteSpace:
                                   "nowrap",
                               }}
@@ -2398,16 +3523,12 @@ function Admin() {
                               )}
                             </td>
 
-                            {/* STATUS */}
-
                             <td
                               style={{
                                 padding:
                                   12,
                                 borderBottom:
                                   "1px solid #eee",
-                                verticalAlign:
-                                  "top",
                               }}
                             >
                               <span
@@ -2415,7 +3536,7 @@ function Admin() {
                                   display:
                                     "inline-block",
                                   padding:
-                                    "6px 10px",
+                                    "5px 9px",
                                   borderRadius:
                                     20,
                                   fontSize:
@@ -2429,12 +3550,12 @@ function Admin() {
                                   ),
                                 }}
                               >
-                                {withdrawal.status ||
-                                  "Unknown"}
+                                {
+                                  withdrawal.status ||
+                                  "Unknown"
+                                }
                               </span>
                             </td>
-
-                            {/* ACTIONS */}
 
                             <td
                               style={{
@@ -2442,11 +3563,9 @@ function Admin() {
                                   12,
                                 borderBottom:
                                   "1px solid #eee",
-                                verticalAlign:
-                                  "top",
                               }}
                             >
-                              {isPending ? (
+                              {pending ? (
                                 <div
                                   style={{
                                     display:
@@ -2454,7 +3573,7 @@ function Admin() {
                                     flexDirection:
                                       "column",
                                     gap:
-                                      8,
+                                      7,
                                     minWidth:
                                       140,
                                   }}
@@ -2466,7 +3585,7 @@ function Admin() {
                                       )
                                     }
                                     disabled={
-                                      isProcessing
+                                      processing
                                     }
                                     style={{
                                       padding:
@@ -2482,16 +3601,14 @@ function Admin() {
                                       fontWeight:
                                         "bold",
                                       cursor:
-                                        isProcessing
-                                          ? "not-allowed"
-                                          : "pointer",
+                                        "pointer",
                                       opacity:
-                                        isProcessing
+                                        processing
                                           ? 0.6
                                           : 1,
                                     }}
                                   >
-                                    {isProcessing
+                                    {processing
                                       ? "Processing..."
                                       : "Approve"}
                                   </button>
@@ -2503,7 +3620,7 @@ function Admin() {
                                       )
                                     }
                                     disabled={
-                                      isProcessing
+                                      processing
                                     }
                                     style={{
                                       padding:
@@ -2519,16 +3636,14 @@ function Admin() {
                                       fontWeight:
                                         "bold",
                                       cursor:
-                                        isProcessing
-                                          ? "not-allowed"
-                                          : "pointer",
+                                        "pointer",
                                       opacity:
-                                        isProcessing
+                                        processing
                                           ? 0.6
                                           : 1,
                                     }}
                                   >
-                                    {isProcessing
+                                    {processing
                                       ? "Processing..."
                                       : "Reject / Refund"}
                                   </button>
@@ -2539,14 +3654,13 @@ function Admin() {
                                     color:
                                       "#666",
                                     fontSize:
-                                      13,
+                                      12,
                                   }}
                                 >
-                                  No action available
+                                  No action
                                 </span>
                               )}
                             </td>
-
                           </tr>
                         )
                       }
@@ -2554,344 +3668,6 @@ function Admin() {
                   </tbody>
                 </table>
               </div>
-            )}
-          </div>
-        )}
-
-        {/* =================================================
-            USERS
-        ================================================= */}
-
-        {activeSection ===
-          "users" && (
-          <div
-            style={{
-              border:
-                "1px solid #ddd",
-              borderRadius:
-                12,
-              padding:
-                20,
-              background:
-                "#fff",
-              overflowX:
-                "auto",
-            }}
-          >
-            <div
-              style={{
-                display:
-                  "flex",
-                justifyContent:
-                  "space-between",
-                alignItems:
-                  "center",
-                gap:
-                  15,
-                flexWrap:
-                  "wrap",
-                marginBottom:
-                  15,
-              }}
-            >
-              <div>
-                <h2>
-                  Users
-                </h2>
-
-                <p
-                  style={{
-                    color:
-                      "#666",
-                  }}
-                >
-                  {profiles.length} user
-                  {profiles.length ===
-                  1
-                    ? ""
-                    : "s"} registered.
-                </p>
-              </div>
-
-              <button
-                onClick={
-                  loadProfiles
-                }
-                style={{
-                  padding:
-                    "10px 15px",
-                  cursor:
-                    "pointer",
-                }}
-              >
-                Refresh Users
-              </button>
-            </div>
-
-            {profiles.length ===
-            0 ? (
-              <p>
-                No users found.
-              </p>
-            ) : (
-              <table
-                style={{
-                  width:
-                    "100%",
-                  borderCollapse:
-                    "collapse",
-                  minWidth:
-                    1000,
-                }}
-              >
-                <thead>
-                  <tr>
-
-                    <th
-                      style={{
-                        textAlign:
-                          "left",
-                        padding:
-                          12,
-                        borderBottom:
-                          "1px solid #ddd",
-                      }}
-                    >
-                      Name
-                    </th>
-
-                    <th
-                      style={{
-                        textAlign:
-                          "left",
-                        padding:
-                          12,
-                        borderBottom:
-                          "1px solid #ddd",
-                      }}
-                    >
-                      User ID
-                    </th>
-
-                    <th
-                      style={{
-                        textAlign:
-                          "left",
-                        padding:
-                          12,
-                        borderBottom:
-                          "1px solid #ddd",
-                      }}
-                    >
-                      Task Balance
-                    </th>
-
-                    <th
-                      style={{
-                        textAlign:
-                          "left",
-                        padding:
-                          12,
-                        borderBottom:
-                          "1px solid #ddd",
-                      }}
-                    >
-                      Affiliate Balance
-                    </th>
-
-                    <th
-                      style={{
-                        textAlign:
-                          "left",
-                        padding:
-                          12,
-                        borderBottom:
-                          "1px solid #ddd",
-                      }}
-                    >
-                      Role
-                    </th>
-
-                    <th
-                      style={{
-                        textAlign:
-                          "left",
-                        padding:
-                          12,
-                        borderBottom:
-                          "1px solid #ddd",
-                      }}
-                    >
-                      Status
-                    </th>
-
-                    <th
-                      style={{
-                        textAlign:
-                          "left",
-                        padding:
-                          12,
-                        borderBottom:
-                          "1px solid #ddd",
-                      }}
-                    >
-                      Referral Code
-                    </th>
-
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {profiles.map(
-                    (
-                      profile
-                    ) => (
-                      <tr
-                        key={
-                          profile.id
-                        }
-                      >
-
-                        {/* NAME */}
-
-                        <td
-                          style={{
-                            padding:
-                              12,
-                            borderBottom:
-                              "1px solid #eee",
-                          }}
-                        >
-                          {profile.full_name ||
-                            "—"}
-                        </td>
-
-                        {/* ID */}
-
-                        <td
-                          style={{
-                            padding:
-                              12,
-                            borderBottom:
-                              "1px solid #eee",
-                            fontSize:
-                              12,
-                            maxWidth:
-                              220,
-                            wordBreak:
-                              "break-all",
-                          }}
-                        >
-                          {profile.id}
-                        </td>
-
-                        {/* TASK BALANCE */}
-
-                        <td
-                          style={{
-                            padding:
-                              12,
-                            borderBottom:
-                              "1px solid #eee",
-                            whiteSpace:
-                              "nowrap",
-                          }}
-                        >
-                          ₦
-                          {formatMoney(
-                            profile.task_balance
-                          )}
-                        </td>
-
-                        {/* AFFILIATE BALANCE */}
-
-                        <td
-                          style={{
-                            padding:
-                              12,
-                            borderBottom:
-                              "1px solid #eee",
-                            whiteSpace:
-                              "nowrap",
-                          }}
-                        >
-                          ₦
-                          {formatMoney(
-                            profile.affiliate_balance
-                          )}
-                        </td>
-
-                        {/* ROLE */}
-
-                        <td
-                          style={{
-                            padding:
-                              12,
-                            borderBottom:
-                              "1px solid #eee",
-                          }}
-                        >
-                          {profile.role ||
-                            "user"}
-                        </td>
-
-                        {/* ACTIVE STATUS */}
-
-                        <td
-                          style={{
-                            padding:
-                              12,
-                            borderBottom:
-                              "1px solid #eee",
-                          }}
-                        >
-                          <span
-                            style={{
-                              display:
-                                "inline-block",
-                              padding:
-                                "5px 9px",
-                              borderRadius:
-                                20,
-                              background:
-                                profile.is_active
-                                  ? "#d1e7dd"
-                                  : "#f8d7da",
-                              color:
-                                profile.is_active
-                                  ? "#0f5132"
-                                  : "#842029",
-                              fontSize:
-                                12,
-                              fontWeight:
-                                "bold",
-                            }}
-                          >
-                            {profile.is_active
-                              ? "Active"
-                              : "Inactive"}
-                          </span>
-                        </td>
-
-                        {/* REFERRAL CODE */}
-
-                        <td
-                          style={{
-                            padding:
-                              12,
-                            borderBottom:
-                              "1px solid #eee",
-                          }}
-                        >
-                          {profile.referral_code ||
-                            "—"}
-                        </td>
-
-                      </tr>
-                    )
-                  )}
-                </tbody>
-              </table>
             )}
           </div>
         )}
