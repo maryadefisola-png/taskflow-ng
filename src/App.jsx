@@ -3,890 +3,169 @@ import { BrowserRouter, Routes, Route } from "react-router-dom"
 import { supabase } from "./supabase"
 import Admin from "./Admin"
 
+const money = (v) => Number(v || 0).toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const dateText = (v) => v ? new Date(v).toLocaleString("en-NG", { dateStyle: "medium", timeStyle: "short" }) : "—"
+
 function UserApp() {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
-
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loginLoading, setLoginLoading] = useState(false)
-
   const [depositAmount, setDepositAmount] = useState("")
   const [depositLoading, setDepositLoading] = useState(false)
-
+  const [withdrawals, setWithdrawals] = useState([])
+  const [tasks, setTasks] = useState([])
+  const [withdrawalLoading, setWithdrawalLoading] = useState(false)
+  const [withdrawalForm, setWithdrawalForm] = useState({ balance_type: "task", amount: "", bank_name: "", account_name: "", account_number: "" })
   const [message, setMessage] = useState("")
-
-  const verificationStarted = useRef(false)
-
-  // =====================================================
-  // LOAD PROFILE
-  // =====================================================
+  const [verificationStarted] = useState({ current: false })
 
   const loadProfile = async (currentUser) => {
-    if (!currentUser) {
-      setProfile(null)
-      return null
-    }
-
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", currentUser.id)
-      .single()
-
-    if (error) {
-      console.error("PROFILE ERROR:", error)
-      return null
-    }
-
-    console.log("PROFILE LOADED:", data)
-
-    setProfile(data)
-
-    return data
+    if (!currentUser) { setProfile(null); return null }
+    const { data, error } = await supabase.from("profiles").select("*").eq("id", currentUser.id).single()
+    if (error) { console.error("PROFILE ERROR:", error); return null }
+    setProfile(data); return data
   }
 
-  // =====================================================
-  // AUTH INITIALIZATION
-  // =====================================================
+  const loadUserData = async (currentUser) => {
+    if (!currentUser) return
+    const [w, t] = await Promise.all([
+      supabase.from("withdrawals").select("*").eq("user_id", currentUser.id).order("created_at", { ascending: false }),
+      supabase.from("tasks").select("*").eq("is_active", true).order("created_at", { ascending: false }),
+    ])
+    if (!w.error) setWithdrawals(w.data || [])
+    if (!t.error) setTasks(t.data || [])
+  }
 
   useEffect(() => {
     let mounted = true
-
     const initializeAuth = async () => {
       try {
-        console.log("CHECKING SUPABASE SESSION...")
-
-        const {
-          data: { session },
-          error,
-        } = await supabase.auth.getSession()
-
-        console.log("INITIAL SESSION:", session)
-
-        if (error) {
-          console.error("GET SESSION ERROR:", error)
-        }
-
+        const { data: { session } } = await supabase.auth.getSession()
         if (!mounted) return
-
-        if (session?.user) {
-          console.log(
-            "USER SESSION FOUND:",
-            session.user.id
-          )
-
-          setUser(session.user)
-
-          await loadProfile(session.user)
-        } else {
-          console.log("NO SUPABASE SESSION FOUND")
-
-          setUser(null)
-          setProfile(null)
-        }
-      } catch (error) {
-        console.error(
-          "AUTH INITIALIZATION ERROR:",
-          error
-        )
-      } finally {
-        if (mounted) {
-          setLoading(false)
-        }
-      }
+        if (session?.user) { setUser(session.user); await loadProfile(session.user); await loadUserData(session.user) }
+        else { setUser(null); setProfile(null) }
+      } catch (e) { console.error("AUTH ERROR:", e) }
+      finally { if (mounted) setLoading(false) }
     }
-
     initializeAuth()
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        if (!mounted) return
-
-        console.log(
-          "AUTH EVENT:",
-          _event,
-          session
-        )
-
-        if (session?.user) {
-          setUser(session.user)
-
-          await loadProfile(session.user)
-        } else {
-          setUser(null)
-          setProfile(null)
-        }
-      }
-    )
-
-    return () => {
-      mounted = false
-      subscription.unsubscribe()
-    }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!mounted) return
+      if (session?.user) { setUser(session.user); await loadProfile(session.user); await loadUserData(session.user) }
+      else { setUser(null); setProfile(null); setWithdrawals([]) }
+    })
+    return () => { mounted = false; subscription.unsubscribe() }
   }, [])
-
-  // =====================================================
-  // VERIFY PAYSTACK PAYMENT
-  // =====================================================
 
   useEffect(() => {
     let cancelled = false
-
     const verifyPayment = async () => {
-      if (verificationStarted.current) {
-        return
-      }
-
-      const params = new URLSearchParams(
-        window.location.search
-      )
-
-      const reference =
-        params.get("reference") ||
-        params.get("trxref")
-
-      console.log(
-        "CURRENT URL:",
-        window.location.href
-      )
-
-      console.log(
-        "PAYSTACK REFERENCE:",
-        reference
-      )
-
-      if (!reference) {
-        return
-      }
-
+      if (verificationStarted.current) return
+      const params = new URLSearchParams(window.location.search)
+      const reference = params.get("reference") || params.get("trxref")
+      if (!reference) return
       verificationStarted.current = true
-
-      setMessage(
-        "Payment returned successfully. Checking your payment..."
-      )
-
+      setMessage("Payment returned. Checking your payment...")
       try {
-        let {
-          data: { session },
-          error: sessionError,
-        } = await supabase.auth.getSession()
-
-        console.log(
-          "SESSION BEFORE PAYMENT VERIFICATION:",
-          session
-        )
-
-        if (sessionError) {
-          console.error(
-            "SESSION ERROR:",
-            sessionError
-          )
-        }
-
+        let { data: { session } } = await supabase.auth.getSession()
         if (!session?.access_token) {
-          console.log(
-            "NO SESSION. TRYING SESSION REFRESH..."
-          )
-
-          const {
-            data: refreshData,
-            error: refreshError,
-          } = await supabase.auth.refreshSession()
-
-          console.log(
-            "REFRESH RESULT:",
-            refreshData
-          )
-
-          if (refreshError) {
-            console.error(
-              "REFRESH ERROR:",
-              refreshError
-            )
-          }
-
-          session =
-            refreshData?.session || null
+          const { data } = await supabase.auth.refreshSession()
+          session = data?.session || null
         }
-
-        if (
-          !session?.access_token ||
-          !session?.user
-        ) {
-          console.error(
-            "NO VALID SESSION AFTER REFRESH"
-          )
-
-          setMessage(
-            "Your login session could not be restored after Paystack returned. Please log in again, then contact support before making another payment."
-          )
-
-          return
-        }
-
-        console.log(
-          "SESSION RESTORED:",
-          session.user.id
-        )
-
-        if (!cancelled) {
-          setUser(session.user)
-
-          await loadProfile(session.user)
-        }
-
-        console.log(
-          "CALLING VERIFY-PAYMENT WITH:",
-          reference
-        )
-
-        const {
-          data,
-          error,
-        } = await supabase.functions.invoke(
-          "verify-payment",
-          {
-            body: {
-              reference,
-            },
-          }
-        )
-
-        console.log(
-          "VERIFY PAYMENT RESPONSE:",
-          data
-        )
-
-        console.log(
-          "VERIFY PAYMENT ERROR:",
-          error
-        )
-
-        if (error) {
-          console.error(
-            "VERIFY PAYMENT FUNCTION ERROR:",
-            error
-          )
-
-          setMessage(
-            "Payment verification failed. Please check your payment status before trying again."
-          )
-
-          return
-        }
-
-        if (!data?.status) {
-          console.error(
-            "PAYMENT VERIFICATION FAILED:",
-            data
-          )
-
-          setMessage(
-            data?.message ||
-              "Payment could not be verified."
-          )
-
-          return
-        }
-
-        console.log(
-          "PAYMENT VERIFIED SUCCESSFULLY:",
-          data
-        )
-
-        setMessage(
-          data?.message ||
-            "Payment verified and balance credited successfully."
-        )
-
-        await loadProfile(session.user)
-
-        setTimeout(async () => {
-          console.log(
-            "REFRESHING PROFILE AFTER PAYMENT..."
-          )
-
-          await loadProfile(session.user)
-        }, 1000)
-
-        const cleanUrl =
-          window.location.origin +
-          window.location.pathname
-
-        window.history.replaceState(
-          {},
-          document.title,
-          cleanUrl
-        )
-      } catch (error) {
-        console.error(
-          "PAYMENT VERIFICATION EXCEPTION:",
-          error
-        )
-
-        setMessage(
-          "Something went wrong while verifying your payment."
-        )
-      }
+        if (!session?.user) { setMessage("Your login session could not be restored. Please log in again before making another payment."); return }
+        if (!cancelled) { setUser(session.user); await loadProfile(session.user) }
+        const { data, error } = await supabase.functions.invoke("verify-payment", { body: { reference } })
+        if (error) throw error
+        if (!data?.status) throw new Error(data?.message || "Payment could not be verified.")
+        setMessage(data.message || "Payment verified and balance credited successfully.")
+        await loadProfile(session.user); await loadUserData(session.user)
+        window.history.replaceState({}, document.title, window.location.origin + window.location.pathname)
+      } catch (e) { console.error("PAYMENT VERIFICATION ERROR:", e); setMessage(e.message || "Payment verification failed. Check your payment status before trying again.") }
     }
-
     verifyPayment()
-
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [])
 
-  // =====================================================
-  // LOGIN
-  // =====================================================
-
   const login = async (e) => {
-    e.preventDefault()
-
-    setMessage("")
-
-    if (!email.trim()) {
-      setMessage("Please enter your email.")
-      return
-    }
-
-    if (!password) {
-      setMessage("Please enter your password.")
-      return
-    }
-
+    e.preventDefault(); setMessage("")
+    if (!email.trim() || !password) return setMessage("Enter your email and password.")
     setLoginLoading(true)
-
     try {
-      console.log("SIGNING IN...")
-
-      const {
-        data,
-        error,
-      } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      })
-
-      console.log("LOGIN RESULT:", data)
-
-      if (error) {
-        console.error("LOGIN ERROR:", error)
-
-        setMessage(
-          error.message ||
-            "Unable to log in."
-        )
-
-        return
-      }
-
-      if (!data?.user) {
-        setMessage(
-          "Login was not completed."
-        )
-
-        return
-      }
-
-      setUser(data.user)
-
-      await loadProfile(data.user)
-
-      setMessage(
-        "Logged in successfully."
-      )
-    } catch (error) {
-      console.error(
-        "LOGIN EXCEPTION:",
-        error
-      )
-
-      setMessage("Unable to log in.")
-    } finally {
-      setLoginLoading(false)
-    }
+      const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
+      if (error) throw error
+      setUser(data.user); await loadProfile(data.user); await loadUserData(data.user); setMessage("Logged in successfully.")
+    } catch (e) { setMessage(e.message || "Unable to log in.") }
+    finally { setLoginLoading(false) }
   }
-
-  // =====================================================
-  // INITIALIZE DEPOSIT
-  // =====================================================
 
   const initializeDeposit = async () => {
     setMessage("")
-
     const amount = Number(depositAmount)
-
-    if (
-      !Number.isFinite(amount) ||
-      amount < 1000
-    ) {
-      setMessage(
-        "Minimum deposit is ₦1,000."
-      )
-
-      return
-    }
-
-    if (!user) {
-      setMessage(
-        "Please log in first."
-      )
-
-      return
-    }
-
+    if (!Number.isFinite(amount) || amount < 1000) return setMessage("Minimum deposit is ₦1,000.")
+    if (!user) return setMessage("Please log in first.")
     setDepositLoading(true)
-
     try {
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession()
-
-      console.log(
-        "SESSION BEFORE INITIALIZE:",
-        session
-      )
-
-      if (
-        sessionError ||
-        !session?.access_token
-      ) {
-        console.error(
-          "SESSION ERROR:",
-          sessionError
-        )
-
-        setMessage(
-          "Your login session has expired. Please log in again."
-        )
-
-        return
-      }
-
-      console.log(
-        "INITIALIZING PAYMENT:",
-        {
-          email: user.email,
-          amount,
-        }
-      )
-
-      const {
-        data,
-        error,
-      } = await supabase.functions.invoke(
-        "initialize-payment",
-        {
-          body: {
-            email: user.email,
-            amount,
-          },
-        }
-      )
-
-      console.log(
-        "INITIALIZE PAYMENT RESPONSE:",
-        data
-      )
-
-      console.log(
-        "INITIALIZE PAYMENT ERROR:",
-        error
-      )
-
-      if (error) {
-        console.error(
-          "INITIALIZE PAYMENT ERROR:",
-          error
-        )
-
-        setMessage(
-          "Unable to initialize payment."
-        )
-
-        return
-      }
-
-      if (
-        !data?.status ||
-        !data?.data?.authorization_url
-      ) {
-        console.error(
-          "INVALID INITIALIZE RESPONSE:",
-          data
-        )
-
-        setMessage(
-          data?.message ||
-            "Unable to initialize payment."
-        )
-
-        return
-      }
-
-      verificationStarted.current = false
-
-      console.log(
-        "REDIRECTING TO PAYSTACK:",
-        data.data.authorization_url
-      )
-
-      window.location.href =
-        data.data.authorization_url
-    } catch (error) {
-      console.error(
-        "DEPOSIT ERROR:",
-        error
-      )
-
-      setMessage(
-        "Unable to initialize payment."
-      )
-    } finally {
-      setDepositLoading(false)
-    }
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) throw new Error("Your login session has expired. Please log in again.")
+      const { data, error } = await supabase.functions.invoke("initialize-payment", { body: { email: user.email, amount } })
+      if (error) throw error
+      if (!data?.status || !data?.data?.authorization_url) throw new Error(data?.message || "Unable to initialize payment.")
+      window.location.href = data.data.authorization_url
+    } catch (e) { console.error(e); setMessage(e.message || "Unable to initialize payment.") }
+    finally { setDepositLoading(false) }
   }
 
-  // =====================================================
-  // LOGOUT
-  // =====================================================
-
-  const logout = async () => {
-    await supabase.auth.signOut()
-
-    setUser(null)
-    setProfile(null)
-
-    setMessage(
-      "You have been logged out."
-    )
+  const requestWithdrawal = async (e) => {
+    e.preventDefault(); setMessage("")
+    const amount = Number(withdrawalForm.amount)
+    if (!Number.isFinite(amount) || amount < 1000) return setMessage("Minimum withdrawal is ₦1,000.")
+    if (!withdrawalForm.bank_name.trim() || !withdrawalForm.account_name.trim() || !/^\d{10}$/.test(withdrawalForm.account_number.trim())) return setMessage("Enter a valid bank name, account name and 10-digit account number.")
+    const balance = withdrawalForm.balance_type === "affiliate" ? Number(profile?.affiliate_balance || 0) : Number(profile?.task_balance || 0)
+    if (amount > balance) return setMessage("Insufficient balance.")
+    setWithdrawalLoading(true)
+    try {
+      const { data, error } = await supabase.rpc("request_withdrawal", {
+        p_balance_type: withdrawalForm.balance_type,
+        p_amount: amount,
+        p_bank_name: withdrawalForm.bank_name.trim(),
+        p_account_name: withdrawalForm.account_name.trim(),
+        p_account_number: withdrawalForm.account_number.trim(),
+      })
+      if (error) throw error
+      setMessage("Withdrawal request submitted successfully. It is now pending admin approval.")
+      setWithdrawalForm(x => ({ ...x, amount: "", bank_name: "", account_name: "", account_number: "" }))
+      await loadProfile(user); await loadUserData(user)
+      console.log("WITHDRAWAL REQUEST:", data)
+    } catch (e) { console.error("WITHDRAWAL ERROR:", e); setMessage(e.message || "Unable to submit withdrawal.") }
+    finally { setWithdrawalLoading(false) }
   }
 
-  // =====================================================
-  // LOADING
-  // =====================================================
+  const logout = async () => { await supabase.auth.signOut(); setUser(null); setProfile(null); setWithdrawals([]); setMessage("You have been logged out.") }
 
-  if (loading) {
-    return (
-      <div
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          fontFamily: "Arial, sans-serif",
-        }}
-      >
-        Loading...
-      </div>
-    )
-  }
+  if (loading) return <div style={styles.center}>Loading...</div>
+  if (!user) return <div style={styles.center}><div style={styles.login}><h1>TaskFlow NG</h1><p>Login to your account</p><form onSubmit={login}><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" autoComplete="email" style={styles.input}/><input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" autoComplete="current-password" style={styles.input}/><button type="submit" disabled={loginLoading} style={styles.fullButton}>{loginLoading ? "Logging in..." : "Login"}</button></form>{message && <div style={styles.notice}>{message}</div>}</div></div>
 
-  // =====================================================
-  // LOGIN SCREEN
-  // =====================================================
+  return <div style={styles.page}><div style={styles.wrap}>
+    <header style={styles.header}><div><h1>TaskFlow NG</h1><div style={styles.muted}>Welcome{profile?.full_name ? `, ${profile.full_name}` : ""}</div></div><button onClick={logout}>Logout</button></header>
+    {message && <div style={styles.notice}>{message}</div>}
 
-  if (!user) {
-    return (
-      <div
-        style={{
-          minHeight: "100vh",
-          padding: 20,
-          boxSizing: "border-box",
-          fontFamily: "Arial, sans-serif",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-        }}
-      >
-        <div
-          style={{
-            width: "100%",
-            maxWidth: 420,
-            border: "1px solid #ddd",
-            borderRadius: 16,
-            padding: 25,
-            boxSizing: "border-box",
-          }}
-        >
-          <h1>TaskFlow NG</h1>
+    <div style={styles.grid}><div style={styles.card}><div style={styles.muted}>Task Balance</div><h2>₦{money(profile?.task_balance)}</h2></div><div style={styles.card}><div style={styles.muted}>Affiliate Balance</div><h2>₦{money(profile?.affiliate_balance)}</h2></div></div>
 
-          <p>
-            Login to your account
-          </p>
+    <section style={styles.card}><h2>Deposit</h2><p style={styles.muted}>Minimum deposit: ₦1,000</p><input type="number" min="1000" step="100" value={depositAmount} onChange={e => setDepositAmount(e.target.value)} placeholder="Enter amount" style={styles.input}/><button onClick={initializeDeposit} disabled={depositLoading} style={styles.fullButton}>{depositLoading ? "Processing..." : "Deposit with Paystack"}</button></section>
 
-          <form onSubmit={login}>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) =>
-                setEmail(e.target.value)
-              }
-              placeholder="Email"
-              autoComplete="email"
-              style={{
-                width: "100%",
-                padding: 14,
-                marginBottom: 12,
-                boxSizing: "border-box",
-                fontSize: 16,
-              }}
-            />
+    <section style={styles.card}><h2>Withdraw</h2><p style={styles.muted}>Minimum withdrawal: ₦1,000. Your balance is deducted when the request is accepted by the server.</p><form onSubmit={requestWithdrawal}><label style={styles.label}>Balance<select value={withdrawalForm.balance_type} onChange={e => setWithdrawalForm(x => ({ ...x, balance_type: e.target.value }))} style={styles.input}><option value="task">Task Balance — ₦{money(profile?.task_balance)}</option><option value="affiliate">Affiliate Balance — ₦{money(profile?.affiliate_balance)}</option></select></label><label style={styles.label}>Amount<input type="number" min="1000" step="100" value={withdrawalForm.amount} onChange={e => setWithdrawalForm(x => ({ ...x, amount: e.target.value }))} placeholder="Amount" style={styles.input}/></label><label style={styles.label}>Bank Name<input value={withdrawalForm.bank_name} onChange={e => setWithdrawalForm(x => ({ ...x, bank_name: e.target.value }))} placeholder="Bank name" style={styles.input}/></label><label style={styles.label}>Account Name<input value={withdrawalForm.account_name} onChange={e => setWithdrawalForm(x => ({ ...x, account_name: e.target.value }))} placeholder="Account name" style={styles.input}/></label><label style={styles.label}>Account Number<input inputMode="numeric" maxLength="10" value={withdrawalForm.account_number} onChange={e => setWithdrawalForm(x => ({ ...x, account_number: e.target.value.replace(/\D/g, "").slice(0, 10) }))} placeholder="10-digit account number" style={styles.input}/></label><button type="submit" disabled={withdrawalLoading} style={styles.fullButton}>{withdrawalLoading ? "Submitting..." : "Request Withdrawal"}</button></form></section>
 
-            <input
-              type="password"
-              value={password}
-              onChange={(e) =>
-                setPassword(e.target.value)
-              }
-              placeholder="Password"
-              autoComplete="current-password"
-              style={{
-                width: "100%",
-                padding: 14,
-                marginBottom: 12,
-                boxSizing: "border-box",
-                fontSize: 16,
-              }}
-            />
+    <section style={styles.card}><h2>My Withdrawals</h2>{withdrawals.length === 0 ? <p style={styles.muted}>No withdrawal requests yet.</p> : <div style={styles.tableWrap}><table style={styles.table}><thead><tr><th>Amount</th><th>Balance</th><th>Bank</th><th>Account</th><th>Status</th><th>Date</th></tr></thead><tbody>{withdrawals.map(w => <tr key={w.id}><td>₦{money(w.amount)}</td><td>{w.balance_type || "—"}</td><td>{w.bank_name || "—"}</td><td>{w.account_number || "—"}</td><td><strong>{w.status || "—"}</strong></td><td>{dateText(w.created_at)}</td></tr>)}</tbody></table></div>}</section>
 
-            <button
-              type="submit"
-              disabled={loginLoading}
-              style={{
-                width: "100%",
-                padding: 14,
-                fontSize: 16,
-              }}
-            >
-              {loginLoading
-                ? "Logging in..."
-                : "Login"}
-            </button>
-          </form>
+    <section style={styles.card}><h2>Available Tasks</h2>{tasks.length === 0 ? <p style={styles.muted}>No active tasks available right now.</p> : tasks.map(t => <article key={t.id} style={styles.task}><div><h3>{t.title}</h3><p>{t.description || "Complete this task to earn the listed reward."}</p><div style={styles.muted}>{t.task_type || "Task"} · {t.verification_method || "Verification required"}</div></div><strong>₦{money(t.reward)}</strong></article>)}</section>
 
-          {message && (
-            <div
-              style={{
-                marginTop: 20,
-                padding: 15,
-                borderRadius: 10,
-                background: "#f3f3f3",
-                lineHeight: 1.5,
-              }}
-            >
-              {message}
-            </div>
-          )}
-        </div>
-      </div>
-    )
-  }
-
-  // =====================================================
-  // USER DASHBOARD
-  // =====================================================
-
-  return (
-    <div
-      style={{
-        minHeight: "100vh",
-        padding: 20,
-        maxWidth: 700,
-        margin: "0 auto",
-        fontFamily: "Arial, sans-serif",
-      }}
-    >
-      {/* HEADER */}
-
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 30,
-        }}
-      >
-        <h1>TaskFlow NG</h1>
-
-        <button onClick={logout}>
-          Logout
-        </button>
-      </div>
-
-      {/* BALANCES */}
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 15,
-          marginBottom: 30,
-        }}
-      >
-        <div
-          style={{
-            border: "1px solid #ddd",
-            borderRadius: 12,
-            padding: 20,
-          }}
-        >
-          <p>Task Balance</p>
-
-          <h2>
-            ₦
-            {Number(
-              profile?.task_balance || 0
-            ).toLocaleString(
-              "en-NG",
-              {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              }
-            )}
-          </h2>
-        </div>
-
-        <div
-          style={{
-            border: "1px solid #ddd",
-            borderRadius: 12,
-            padding: 20,
-          }}
-        >
-          <p>Affiliate Balance</p>
-
-          <h2>
-            ₦
-            {Number(
-              profile?.affiliate_balance || 0
-            ).toLocaleString(
-              "en-NG",
-              {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              }
-            )}
-          </h2>
-        </div>
-      </div>
-
-      {/* DEPOSIT */}
-
-      <div
-        style={{
-          border: "1px solid #ddd",
-          borderRadius: 12,
-          padding: 20,
-          marginBottom: 20,
-        }}
-      >
-        <h2>Deposit</h2>
-
-        <p>
-          Minimum deposit: ₦1,000
-        </p>
-
-        <input
-          type="number"
-          min="1000"
-          step="100"
-          value={depositAmount}
-          onChange={(e) =>
-            setDepositAmount(
-              e.target.value
-            )
-          }
-          placeholder="Enter amount"
-          disabled={depositLoading}
-          style={{
-            width: "100%",
-            padding: 12,
-            marginBottom: 12,
-            boxSizing: "border-box",
-            fontSize: 16,
-          }}
-        />
-
-        <button
-          onClick={initializeDeposit}
-          disabled={depositLoading}
-          style={{
-            width: "100%",
-            padding: 14,
-            fontSize: 16,
-            cursor: depositLoading
-              ? "not-allowed"
-              : "pointer",
-          }}
-        >
-          {depositLoading
-            ? "Processing..."
-            : "Deposit"}
-        </button>
-      </div>
-
-      {/* MESSAGE */}
-
-      {message && (
-        <div
-          style={{
-            padding: 15,
-            borderRadius: 10,
-            background: "#f3f3f3",
-            marginTop: 20,
-            lineHeight: 1.5,
-          }}
-        >
-          {message}
-        </div>
-      )}
-
-      {/* USER */}
-
-      <div
-        style={{
-          marginTop: 30,
-          fontSize: 14,
-        }}
-      >
-        <p>Logged in as:</p>
-
-        <strong>
-          {user.email}
-        </strong>
-      </div>
-    </div>
-  )
+    <div style={styles.muted}>Logged in as {user.email}</div>
+  </div></div>
 }
 
-// =====================================================
-// MAIN APP ROUTER
-// =====================================================
+const styles = { page: { minHeight: "100vh", padding: 20, background: "#f7f7f8", fontFamily: "Arial, sans-serif", boxSizing: "border-box" }, wrap: { maxWidth: 850, margin: "0 auto" }, center: { minHeight: "100vh", display: "grid", placeItems: "center", padding: 20, fontFamily: "Arial, sans-serif" }, login: { width: "100%", maxWidth: 420, border: "1px solid #ddd", borderRadius: 16, padding: 25, boxSizing: "border-box" }, header: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 20 }, grid: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 14 }, card: { background: "#fff", border: "1px solid #ddd", borderRadius: 14, padding: 20, marginBottom: 18 }, input: { width: "100%", padding: 12, margin: "6px 0 12px", boxSizing: "border-box", fontSize: 16 }, label: { display: "block", fontWeight: 600 }, fullButton: { width: "100%", padding: 14, fontSize: 16 }, notice: { background: "#eef3ff", border: "1px solid #ccd8ff", padding: 12, borderRadius: 10, marginBottom: 14, lineHeight: 1.5 }, muted: { color: "#666", fontSize: 13 }, tableWrap: { overflowX: "auto" }, table: { width: "100%", borderCollapse: "collapse", minWidth: 650 }, task: { display: "flex", justifyContent: "space-between", gap: 15, padding: 15, border: "1px solid #ddd", borderRadius: 10, marginBottom: 10 } }
 
-function App() {
-  return (
-    <BrowserRouter>
-      <Routes>
-        <Route
-          path="/admin"
-          element={<Admin />}
-        />
-
-        <Route
-          path="*"
-          element={<UserApp />}
-        />
-      </Routes>
-    </BrowserRouter>
-  )
-}
-
+function App() { return <BrowserRouter><Routes><Route path="/admin" element={<Admin />} /><Route path="*" element={<UserApp />} /></Routes></BrowserRouter> }
 export default App
