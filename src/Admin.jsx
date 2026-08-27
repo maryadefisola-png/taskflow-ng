@@ -79,9 +79,26 @@ function Admin() {
 
   const startPaystackTransfer = async (id) => {
     const { data, error } = await supabase.functions.invoke("process-approved-withdrawal", { body: { withdrawal_id: id } })
-    if (error) throw error
-    if (data && data.status === false) throw new Error(data.message || "Paystack transfer could not be started.")
-    return data
+    if (!error) {
+      if (data && data.status === false) {
+        throw new Error([data.message, data.stage ? `Stage: ${data.stage}` : "", data.paystack_status ? `Paystack HTTP: ${data.paystack_status}` : "", data.bank_name ? `Bank: ${data.bank_name}` : "", data.bank_code ? `Bank code: ${data.bank_code}` : "", data.paystack_code ? `Paystack code: ${data.paystack_code}` : ""].filter(Boolean).join(" — "))
+      }
+      return data
+    }
+    const context = error.context
+    let detail = ""
+    if (context) {
+      try {
+        const raw = await context.clone().text()
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw)
+            detail = [parsed.message, parsed.stage ? `Stage: ${parsed.stage}` : "", parsed.paystack_status ? `Paystack HTTP: ${parsed.paystack_status}` : "", parsed.bank_name ? `Bank: ${parsed.bank_name}` : "", parsed.bank_code ? `Bank code: ${parsed.bank_code}` : "", parsed.paystack_code ? `Paystack code: ${parsed.paystack_code}` : ""].filter(Boolean).join(" — ")
+          } catch { detail = raw }
+        }
+      } catch { /* keep Supabase error message */ }
+    }
+    throw new Error(detail || error.message || "Paystack transfer could not be started.")
   }
 
   const approveWithdrawal = async (w) => {
