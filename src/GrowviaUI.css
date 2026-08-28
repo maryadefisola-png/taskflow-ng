@@ -1,0 +1,15 @@
+/* Growvia app polish: logo, navigation spacing and mobile layout */
+.growvia-login-orb { position: relative; font-size: 0 !important; background: linear-gradient(145deg,#39d98a,#18a86b) !important; box-shadow: 0 12px 30px rgba(24,168,107,.28) !important; }
+.growvia-login-orb::before { content:""; width:31px; height:31px; border:5px solid #fff; border-left-color:transparent; border-radius:50%; transform:rotate(-42deg); }
+.growvia-login-orb::after { content:""; position:absolute; width:12px; height:5px; border-radius:5px; background:#fff; transform:translate(7px,5px) rotate(-42deg); }
+.growvia-login-card h1 { letter-spacing:-1.2px; }
+.growvia-login-form button { background:linear-gradient(135deg,#39d98a,#18a86b) !important; color:#fff !important; }
+.growvia-login-form button:hover { box-shadow:0 12px 28px rgba(24,168,107,.25) !important; }
+@media (max-width:600px) { .growvia-login-card { padding:28px !important; } }
+/* Leave room for the five-tab navigation on the user dashboard. */
+body:has(.growvia-login-page) { padding-bottom:0 !important; }
+body:not(:has(.growvia-login-page)) { padding-bottom:92px !important; }
+/* Give the navigation a premium active state. */
+nav[aria-label="Growvia navigation"] button[aria-current="page"] { color:#159669 !important; background:linear-gradient(135deg,#e9fff5,#f4fffa) !important; }
+nav[aria-label="Growvia navigation"] button { transition:transform .18s ease,background .18s ease,color .18s ease; }
+nav[aria-label="Growvia navigation"] button:active { transform:scale(.94); }
