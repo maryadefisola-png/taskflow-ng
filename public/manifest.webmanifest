@@ -1,0 +1,14 @@
+{
+  "name": "Growvia",
+  "short_name": "Growvia",
+  "description": "Growvia digital services and online task platform",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f5f7fb",
+  "theme_color": "#159669",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
