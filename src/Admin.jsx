@@ -2,6 +2,7 @@ import { useEffect,useMemo,useState } from "react"
 import { supabase } from "./supabase"
 import "./GrowviaPolished.css"
 const money=v=>Number(v||0).toLocaleString("en-NG",{minimumFractionDigits:2,maximumFractionDigits:2})
+const naira=v=>`₦${money(v)}`
 const emptyTask={id:null,title:"",description:"",reward:"",is_active:true,task_type:"",verification_method:"",max_completions:"",starts_at:"",ends_at:""}
 const emptyPlan={id:null,name:"",price:"",description:"",benefits:"",daily_task_limit:"",daily_blog_limit:"",referral_bonus:"",is_active:true,sort_order:0}
 function Admin(){
