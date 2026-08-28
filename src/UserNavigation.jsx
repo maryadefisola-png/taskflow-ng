@@ -10,16 +10,26 @@ const tabs = [
 ]
 
 export default function UserNavigation() {
-  const [active, setActive] = useState("home")
+  const [active, setActive] = useState(() => window.location.hash.replace(/^#/, "") || "home")
   const [profile, setProfile] = useState(null)
   const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    const syncPage = () => {
+      const next = window.location.hash.replace(/^#/, "") || "home"
+      setActive(["home", "refer", "wallet", "tasks", "profile"].includes(next) ? next : "home")
+    }
+    window.addEventListener("hashchange", syncPage)
+    syncPage()
+    return () => window.removeEventListener("hashchange", syncPage)
+  }, [])
 
   useEffect(() => {
     let mounted = true
     const sync = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (!mounted) return
-      if (!session?.user) { setVisible(false); return }
+      if (!session?.user) { setVisible(false); setProfile(null); return }
       setVisible(true)
       const { data } = await supabase.from("profiles").select("full_name,phone,referral_code,created_at,role,is_active").eq("id", session.user.id).maybeSingle()
       if (mounted) setProfile(data || null)
@@ -29,46 +39,24 @@ export default function UserNavigation() {
     return () => { mounted = false; subscription.unsubscribe() }
   }, [])
 
-  useEffect(() => {
-    if (!visible) return
-    const apply = () => {
-      const root = document.querySelector("#root")
-      const wrap = root?.querySelector("[style*='max-width:850px']")
-      if (!wrap) return
-      const sections = [...wrap.children].filter(el => el.tagName === "SECTION")
-      const hero = [...wrap.children].find(el => el.querySelector?.(".logoSmall") || el.textContent?.includes("Available earnings"))
-      const grid = hero?.nextElementSibling
-      const headings = sections.map(s => s.querySelector("h2")?.textContent?.trim() || "")
-      const show = el => { if (el) el.style.display = "" }
-      const hide = el => { if (el) el.style.display = "none" }
-      if (active === "home") {
-        show(hero); show(grid); sections.forEach(hide)
-      } else if (active === "tasks") {
-        hide(hero); hide(grid); sections.forEach((el,i) => /Available Tasks|Submit:/.test(headings[i] || "") ? show(el) : hide(el))
-      } else if (active === "wallet") {
-        hide(hero); hide(grid); sections.forEach((el,i) => /Deposit|Withdraw Earnings|My Withdrawals/.test(headings[i] || "") ? show(el) : hide(el))
-      } else {
-        hide(hero); hide(grid); sections.forEach(hide)
-      }
-    }
-    apply()
-    const observer = new MutationObserver(apply)
-    observer.observe(document.getElementById("root"), { childList: true, subtree: true })
-    return () => observer.disconnect()
-  }, [active, visible])
-
   if (!visible) return null
 
+  const go = id => {
+    if (window.location.hash === `#${id}`) setActive(id)
+    else window.location.hash = id
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
   const content = () => {
-    if (active === "refer") return <div style={panel}><div style={eyebrow}>GROWVIA REFERRALS</div><h2 style={title}>Invite & earn</h2><p style={text}>Share your referral code with friends and earn from eligible referrals.</p><div style={refBox}><span style={refLabel}>Your referral code</span><strong style={refCode}>{profile?.referral_code || "Not available"}</strong>{profile?.referral_code && <button style={copyBtn} onClick={() => navigator.clipboard?.writeText(profile.referral_code)}>Copy code</button>}</div></div>
-    if (active === "profile") return <div style={panel}><div style={eyebrow}>YOUR ACCOUNT</div><h2 style={title}>{profile?.full_name || "Profile"}</h2><div style={profileRows}><div><span>Email</span><strong>{""}</strong></div><div><span>Phone</span><strong>{profile?.phone || "Not set"}</strong></div><div><span>Referral code</span><strong>{profile?.referral_code || "Not set"}</strong></div><div><span>Status</span><strong>{profile?.is_active === false ? "Inactive" : "Active"}</strong></div></div><p style={text}>Use the Log out button at the top to safely end your session.</p></div>
+    if (active === "refer") return <div style={panel}><div style={eyebrow}>GROWVIA REFERRALS</div><h2 style={title}>Invite & earn</h2><p style={text}>Share your referral code with friends and earn from eligible referrals.</p><div style={refBox}><span style={refLabel}>Your referral code</span><strong style={refCode}>{profile?.referral_code || "Not available"}</strong>{profile?.referral_code && <><button style={copyBtn} onClick={() => navigator.clipboard?.writeText(profile.referral_code)}>Copy code</button><div style={refLink}>{window.location.origin}/?ref={encodeURIComponent(profile.referral_code)}</div></>}</div></div>
+    if (active === "profile") return <div style={panel}><div style={eyebrow}>YOUR ACCOUNT</div><h2 style={title}>{profile?.full_name || "Profile"}</h2><div style={profileRows}><div><span>Phone</span><strong>{profile?.phone || "Not set"}</strong></div><div><span>Referral code</span><strong>{profile?.referral_code || "Not set"}</strong></div><div><span>Status</span><strong>{profile?.is_active === false ? "Inactive" : "Active"}</strong></div><div><span>Member since</span><strong>{profile?.created_at ? new Date(profile.created_at).toLocaleDateString("en-NG") : "—"}</strong></div></div><p style={text}>Use the Log out button at the top to safely end your session.</p></div>
     return null
   }
 
   return <>
     {content()}
     <nav aria-label="Growvia navigation" style={nav}>
-      {tabs.map(([id, icon, label]) => <button key={id} onClick={() => setActive(id)} style={{...tab, ...(active === id ? activeTab : {})}} aria-label={label} aria-current={active === id ? "page" : undefined}><span style={tabIcon}>{icon}</span><span>{label}</span></button>)}
+      {tabs.map(([id, icon, label]) => <button key={id} onClick={() => go(id)} style={{...tab, ...(active === id ? activeTab : {})}} aria-label={label} aria-current={active === id ? "page" : undefined}><span style={tabIcon}>{icon}</span><span>{label}</span></button>)}
     </nav>
   </>
 }
@@ -85,4 +73,5 @@ const refBox={marginTop:18,padding:18,borderRadius:16,background:"#15171a",color
 const refLabel={fontSize:11,opacity:.65}
 const refCode={fontSize:24,letterSpacing:1}
 const copyBtn={justifySelf:"start",padding:"8px 12px",border:0,borderRadius:9,fontWeight:750,cursor:"pointer"}
+const refLink={fontSize:11,opacity:.7,wordBreak:"break-all"}
 const profileRows={display:"grid",gap:10,margin:"18px 0"}
