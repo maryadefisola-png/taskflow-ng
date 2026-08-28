@@ -24,3 +24,16 @@ body:has(#root form input[type="email"]) #root > div:first-child > div:first-chi
 @keyframes growviaFloat { 0%,100% { transform: translate3d(0,0,0) scale(1); } 50% { transform: translate3d(30px,24px,0) scale(1.08); } }
 @keyframes growviaPulse { 0%,100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,255,255,.12); } 50% { transform: scale(1.06); box-shadow: 0 0 0 14px rgba(255,255,255,0); } }
 @media (prefers-reduced-motion: reduce) { body:has(#root form input[type="email"]) #root > div:first-child::before, body:has(#root form input[type="email"]) #root > div:first-child::after, body:has(#root form input[type="email"]) #root > div:first-child > div:first-child, body:has(#root form input[type="email"]) #root > div:first-child > div:first-child > div:first-child { animation: none; } }
+
+.customer-care-fab { position: fixed; right: 20px; bottom: 20px; z-index: 9999; width: 56px; height: 56px; border: 0; border-radius: 50%; background: #229ed9; color: #fff; font-size: 25px; display: grid; place-items: center; cursor: pointer; box-shadow: 0 8px 25px rgba(0,0,0,.22); }
+.customer-care-fab:hover { transform: translateY(-2px); }
+.customer-care-message { position: fixed; right: 20px; bottom: 88px; z-index: 10000; max-width: 280px; padding: 12px 14px; border-radius: 12px; background: #17191d; color: #fff; font-size: 13px; box-shadow: 0 8px 25px rgba(0,0,0,.2); }
+.customer-care-admin-panel { position: fixed; right: 20px; bottom: 88px; z-index: 10000; width: min(330px, calc(100vw - 40px)); padding: 18px; border: 1px solid #e1e5eb; border-radius: 16px; background: #fff; color: #17191d; box-shadow: 0 14px 45px rgba(0,0,0,.18); }
+.customer-care-admin-title { font-size: 18px; font-weight: 850; margin-bottom: 5px; }
+.customer-care-admin-help { color: #69717e; font-size: 12px; line-height: 1.5; margin-bottom: 12px; }
+.customer-care-admin-panel form { display: flex; gap: 8px; }
+.customer-care-admin-panel input { flex: 1; min-width: 0; padding: 11px; border: 1px solid #d9dee7; border-radius: 9px; outline: none; }
+.customer-care-admin-panel form button { padding: 11px 12px; border: 0; border-radius: 9px; background: #15171a; color: #fff; font-weight: 750; cursor: pointer; }
+.customer-care-admin-message { margin-top: 10px; font-size: 12px; color: #56606d; }
+.admin-care-fab { background: #15171a; }
+@media (max-width: 480px) { .customer-care-fab { right: 14px; bottom: 14px; } .customer-care-admin-panel { right: 14px; bottom: 80px; width: calc(100vw - 28px); } }
