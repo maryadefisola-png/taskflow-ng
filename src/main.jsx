@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { supabase } from './supabase'
 import GrowviaPolishedV2 from './GrowviaPolishedV2.jsx'
 import LiveActivity from './LiveActivity.jsx'
+import KorapayBranding from './KorapayBranding.jsx'
 import Admin from './Admin.jsx'
 import './index.css'
 
@@ -32,8 +33,7 @@ function RootApp() {
   useEffect(() => { let mounted=true; supabase.auth.getSession().then(({data})=>{if(mounted)setSession(data.session)}); const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,nextSession)=>{if(mounted)setSession(nextSession)}); return ()=>{mounted=false;subscription.unsubscribe()} }, [])
   if (window.location.pathname.startsWith('/admin')) return <Admin />
   if (session===undefined) return <div className="gv-loading">Loading Growvia…</div>
-  if (!session) return <AuthGate />
-  return <><GrowviaPolishedV2 /><LiveActivity /><PwaInstallPrompt /></>
+  return <><LiveActivity /><KorapayBranding />{session ? <><GrowviaPolishedV2 /><PwaInstallPrompt /></> : <AuthGate />}</>
 }
 
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}))
