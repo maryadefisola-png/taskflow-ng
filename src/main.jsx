@@ -2,6 +2,7 @@ import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { supabase } from './supabase'
 import GrowviaPolishedV2 from './GrowviaPolishedV2.jsx'
+import LiveActivity from './LiveActivity.jsx'
 import Admin from './Admin.jsx'
 import './index.css'
 
@@ -32,7 +33,7 @@ function RootApp() {
   if (window.location.pathname.startsWith('/admin')) return <Admin />
   if (session===undefined) return <div className="gv-loading">Loading Growvia…</div>
   if (!session) return <AuthGate />
-  return <><GrowviaPolishedV2 /><PwaInstallPrompt /></>
+  return <><GrowviaPolishedV2 /><LiveActivity /><PwaInstallPrompt /></>
 }
 
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}))
