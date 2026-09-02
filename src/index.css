@@ -2,28 +2,21 @@
 html, body, #root { margin: 0; width: 100%; min-height: 100%; }
 body { font-family: Arial, sans-serif; background: #07152e; }
 
-/* Growvia animated login — targets the existing login markup without changing auth logic. */
 body:has(#root form input[type="email"]) #root > div:first-child { position: relative !important; overflow: hidden !important; min-height: 100vh !important; display: grid !important; place-items: center !important; padding: 24px !important; background: radial-gradient(circle at 15% 20%, rgba(76,175,255,.22), transparent 32%), radial-gradient(circle at 85% 80%, rgba(123,92,255,.20), transparent 34%), linear-gradient(135deg, #07152e, #0b2143 55%, #081326) !important; }
-body:has(#root form input[type="email"]) #root > div:first-child::before,
-body:has(#root form input[type="email"]) #root > div:first-child::after { content: ""; position: absolute; width: 340px; height: 340px; border-radius: 50%; filter: blur(8px); opacity: .55; pointer-events: none; animation: growviaFloat 9s ease-in-out infinite; }
+body:has(#root form input[type="email"]) #root > div:first-child::before,body:has(#root form input[type="email"]) #root > div:first-child::after { content: ""; position: absolute; width: 340px; height: 340px; border-radius: 50%; filter: blur(8px); opacity: .55; pointer-events: none; animation: growviaFloat 9s ease-in-out infinite; }
 body:has(#root form input[type="email"]) #root > div:first-child::before { background: rgba(47,182,255,.18); left: -110px; top: -80px; }
 body:has(#root form input[type="email"]) #root > div:first-child::after { background: rgba(139,92,246,.18); right: -110px; bottom: -100px; animation-delay: -4s; }
 body:has(#root form input[type="email"]) #root > div:first-child > div:first-child { position: relative !important; z-index: 1 !important; width: min(100%, 420px) !important; margin: 0 auto !important; padding: 34px !important; border: 1px solid rgba(255,255,255,.14) !important; border-radius: 26px !important; background: rgba(255,255,255,.08) !important; backdrop-filter: blur(18px) !important; box-shadow: 0 28px 80px rgba(0,0,0,.30) !important; color: #fff !important; animation: growviaEnter .7s cubic-bezier(.2,.8,.2,1); }
-body:has(#root form input[type="email"]) #root > div:first-child > div:first-child > div:first-child { width: 68px !important; height: 68px !important; margin: 0 auto 16px !important; display: grid !important; place-items: center !important; border-radius: 22px !important; background: rgba(255,255,255,.14) !important; border: 1px solid rgba(255,255,255,.2) !important; color: #fff !important; font-size: 30px !important; font-weight: 900 !important; box-shadow: 0 0 0 0 rgba(255,255,255,.18) !important; animation: growviaPulse 2.8s ease-in-out infinite; }
+body:has(#root form input[type="email"]) #root > div:first-child > div:first-child > div:first-child { width: 68px !important; height: 68px !important; margin: 0 auto 16px !important; display: grid !important; place-items: center !important; border-radius: 22px !important; background: rgba(255,255,255,.14) !important; border: 1px solid rgba(255,255,255,.2) !important; color: #fff !important; font-size: 30px !important; font-weight: 900 !important; animation: growviaPulse 2.8s ease-in-out infinite; }
 body:has(#root form input[type="email"]) #root > div:first-child h1 { text-align: center !important; color: #fff !important; font-size: 32px !important; letter-spacing: -1px; }
 body:has(#root form input[type="email"]) #root > div:first-child p { text-align: center !important; color: rgba(255,255,255,.72) !important; }
 body:has(#root form input[type="email"]) #root > div:first-child form { display: grid !important; gap: 12px !important; }
-body:has(#root form input[type="email"]) #root > div:first-child form input { width: 100% !important; padding: 14px 15px !important; border-radius: 12px !important; border: 1px solid rgba(255,255,255,.18) !important; outline: none !important; background: rgba(255,255,255,.09) !important; color: #fff !important; transition: transform .2s ease, border-color .2s ease, background .2s ease !important; }
+body:has(#root form input[type="email"]) #root > div:first-child form input { width: 100% !important; padding: 14px 15px !important; border-radius: 12px !important; border: 1px solid rgba(255,255,255,.18) !important; outline: none !important; background: rgba(255,255,255,.09) !important; color: #fff !important; }
 body:has(#root form input[type="email"]) #root > div:first-child form input::placeholder { color: rgba(255,255,255,.55) !important; }
-body:has(#root form input[type="email"]) #root > div:first-child form input:focus { transform: translateY(-1px) !important; border-color: rgba(255,255,255,.55) !important; background: rgba(255,255,255,.14) !important; }
-body:has(#root form input[type="email"]) #root > div:first-child form button { width: 100% !important; padding: 14px !important; border: 0 !important; border-radius: 12px !important; background: #fff !important; color: #07152e !important; font-weight: 800 !important; cursor: pointer; transition: transform .2s ease, box-shadow .2s ease !important; }
-body:has(#root form input[type="email"]) #root > div:first-child form button:hover { transform: translateY(-2px) !important; box-shadow: 0 10px 24px rgba(0,0,0,.18) !important; }
-body:has(#root form input[type="email"]) #root > div:first-child form button:disabled { opacity: .65 !important; cursor: wait !important; transform: none !important; }
-body:has(#root form input[type="email"]) #root > div:first-child > div:first-child > div:last-child { margin-top: 14px !important; padding: 11px 12px !important; border-radius: 11px !important; background: rgba(255,255,255,.10) !important; color: rgba(255,255,255,.85) !important; }
+body:has(#root form input[type="email"]) #root > div:first-child form button { width: 100% !important; padding: 14px !important; border: 0 !important; border-radius: 12px !important; background: #fff !important; color: #07152e !important; font-weight: 800 !important; }
 @keyframes growviaEnter { from { opacity: 0; transform: translateY(24px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @keyframes growviaFloat { 0%,100% { transform: translate3d(0,0,0) scale(1); } 50% { transform: translate3d(30px,24px,0) scale(1.08); } }
 @keyframes growviaPulse { 0%,100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,255,255,.12); } 50% { transform: scale(1.06); box-shadow: 0 0 0 14px rgba(255,255,255,0); } }
-@media (prefers-reduced-motion: reduce) { body:has(#root form input[type="email"]) #root > div:first-child::before, body:has(#root form input[type="email"]) #root > div:first-child::after, body:has(#root form input[type="email"]) #root > div:first-child > div:first-child, body:has(#root form input[type="email"]) #root > div:first-child > div:first-child > div:first-child { animation: none; } }
 
 .customer-care-fab { position: fixed; right: 20px; bottom: 20px; z-index: 9999; width: 56px; height: 56px; border: 0; border-radius: 50%; background: #229ed9; color: #fff; font-size: 25px; display: grid; place-items: center; cursor: pointer; box-shadow: 0 8px 25px rgba(0,0,0,.22); }
 .customer-care-fab:hover { transform: translateY(-2px); }
@@ -36,4 +29,50 @@ body:has(#root form input[type="email"]) #root > div:first-child > div:first-chi
 .customer-care-admin-panel form button { padding: 11px 12px; border: 0; border-radius: 9px; background: #15171a; color: #fff; font-weight: 750; cursor: pointer; }
 .customer-care-admin-message { margin-top: 10px; font-size: 12px; color: #56606d; }
 .admin-care-fab { background: #15171a; }
-@media (max-width: 480px) { .customer-care-fab { right: 14px; bottom: 14px; } .customer-care-admin-panel { right: 14px; bottom: 80px; width: calc(100vw - 28px); } }
+
+/* Professional fintech dashboard polish */
+.gv-app { padding-top: 18px !important; }
+.gv-header { position: sticky; top: 0; z-index: 40; padding: 10px 0 14px; background: rgba(245,247,251,.88); backdrop-filter: blur(16px); }
+.gv-brand { letter-spacing: -1.2px; }
+.gv-header .gv-muted { margin-top: 2px; }
+.gv-hero { position: relative; min-height: 176px; }
+.gv-hero::after { content:""; position:absolute; width:170px; height:170px; right:-55px; top:-55px; border-radius:50%; border:1px solid rgba(255,255,255,.12); box-shadow:0 0 0 28px rgba(255,255,255,.035),0 0 0 56px rgba(255,255,255,.025); pointer-events:none; }
+.gv-hero-logo { position:relative; z-index:1; }
+.gv-stats .gv-stat { transition: transform .2s ease, box-shadow .2s ease; }
+.gv-stats .gv-stat:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(21,23,26,.08); }
+.gv-primary,.gv-dark { transition: transform .18s ease, box-shadow .18s ease, filter .18s ease; }
+.gv-primary:hover,.gv-dark:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(21,150,105,.18); filter: brightness(1.02); }
+.gv-card h2 { letter-spacing: -.4px; }
+.gv-pro-actions { max-width:920px; margin:0 auto 16px; display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+.gv-pro-actions button { border:1px solid #e4e7ec; background:#fff; border-radius:17px; padding:13px 12px; text-align:left; display:grid; grid-template-columns:38px 1fr; column-gap:9px; align-items:center; box-shadow:0 8px 24px rgba(21,23,26,.045); transition:transform .18s ease,box-shadow .18s ease; }
+.gv-pro-actions button:hover { transform:translateY(-2px); box-shadow:0 12px 30px rgba(21,23,26,.08); }
+.gv-pro-actions button span { grid-row:1/3; width:38px; height:38px; display:grid; place-items:center; border-radius:12px; background:#eafff4; color:#159669; font-weight:900; font-size:17px; }
+.gv-pro-actions b { font-size:13px; }
+.gv-pro-actions small { color:#68707d; font-size:10px; margin-top:2px; }
+.gv-section-head { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+.gv-section-head h2 { margin:5px 0 0; }
+.gv-text-btn { border:0; background:transparent; color:#159669; font-weight:800; font-size:12px; padding:6px 0; }
+.gv-tx { display:flex; align-items:center; gap:12px; padding:13px 0; border-top:1px solid #edf0f3; }
+.gv-tx:first-of-type { margin-top:8px; }
+.gv-tx-icon { width:38px; height:38px; border-radius:12px; display:grid; place-items:center; font-weight:900; flex-shrink:0; }
+.gv-tx-icon.positive { background:#eafff4; color:#159669; }
+.gv-tx-icon.negative { background:#fff1f1; color:#d64545; }
+.gv-tx-main { min-width:0; flex:1; display:grid; gap:3px; }
+.gv-tx-main b { font-size:13px; }
+.gv-tx-main small { color:#8a929f; font-size:10px; text-transform:capitalize; }
+.gv-tx strong { font-size:13px; white-space:nowrap; }
+.positive-text { color:#159669; }
+.negative-text { color:#d64545; }
+.gv-empty { display:flex; align-items:center; gap:12px; padding:18px 0 3px; color:#68707d; }
+.gv-empty>span { width:38px; height:38px; display:grid; place-items:center; border-radius:12px; background:#f4f7f8; font-size:20px; }
+.gv-empty div { display:grid; gap:3px; }
+.gv-empty small { font-size:11px; }
+.gv-trust { max-width:920px; margin:0 auto 16px; display:flex; align-items:center; gap:11px; padding:13px 15px; border:1px solid #dcefe6; border-radius:16px; background:linear-gradient(135deg,#f7fffb,#fff); }
+.gv-trust-icon { width:34px; height:34px; border-radius:11px; display:grid; place-items:center; background:#eafff4; color:#159669; font-weight:900; }
+.gv-trust>div:nth-child(2) { flex:1; display:grid; gap:2px; }
+.gv-trust b { font-size:12px; }
+.gv-trust span { color:#68707d; font-size:10px; }
+.gv-online { display:flex; align-items:center; gap:5px; color:#159669 !important; font-weight:800; font-size:10px !important; }
+.gv-online i { width:6px; height:6px; border-radius:50%; background:#39d98a; box-shadow:0 0 0 4px rgba(57,217,138,.12); }
+@media(max-width:700px){ .gv-header{margin-bottom:10px}.gv-pro-actions{gap:7px}.gv-pro-actions button{padding:11px 8px;grid-template-columns:32px 1fr}.gv-pro-actions button span{width:32px;height:32px;border-radius:10px}.gv-pro-actions small{font-size:9px}.gv-tx{padding:12px 0}.gv-trust{padding:12px}.gv-online{display:none} }
+@media(max-width:420px){.gv-pro-actions b{font-size:11px}.gv-pro-actions small{display:none}.gv-pro-actions button{grid-template-columns:32px 1fr;min-height:54px}.gv-pro-actions button span{grid-row:1}}
