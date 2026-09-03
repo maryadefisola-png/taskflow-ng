@@ -1,12 +1,12 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import InvestmentApp from './InvestmentApp.jsx'
+import GrowviaApp from './GrowviaApp.jsx'
 import Admin from './Admin.jsx'
 import './index.css'
 
 function RootApp(){
  if(window.location.pathname.startsWith('/admin')) return <Admin />
- return <InvestmentApp />
+ return <GrowviaApp />
 }
 
 if('serviceWorker' in navigator) window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}))
