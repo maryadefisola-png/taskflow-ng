@@ -1,5 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { BrowserRouter } from 'react-router-dom'
 import GrowviaApp from './GrowviaApp.jsx'
 import Admin from './Admin.jsx'
 import './index.css'
@@ -11,7 +12,11 @@ if(!window.location.pathname.startsWith('/admin')&&!publicRoutes.includes(window
 
 function RootApp(){
  if(window.location.pathname.startsWith('/admin')) return <Admin />
- return <GrowviaApp />
+ return (
+  <BrowserRouter>
+   <GrowviaApp />
+  </BrowserRouter>
+ )
 }
 
 if('serviceWorker' in navigator) window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}))
