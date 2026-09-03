@@ -4,6 +4,11 @@ import GrowviaApp from './GrowviaApp.jsx'
 import Admin from './Admin.jsx'
 import './index.css'
 
+const publicRoutes=['/','/plans','/wallet','/history','/more']
+if(!window.location.pathname.startsWith('/admin')&&!publicRoutes.includes(window.location.pathname)){
+ window.history.replaceState({},'', '/')
+}
+
 function RootApp(){
  if(window.location.pathname.startsWith('/admin')) return <Admin />
  return <GrowviaApp />
