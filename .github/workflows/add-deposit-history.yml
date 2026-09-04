@@ -1,0 +1,46 @@
+name: Add admin deposit history
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-admin:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Add deposit history to admin dashboard
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/Admin.jsx')
+          s = p.read_text()
+          if '[deposits,setDeposits]' in s:
+              print('Deposit history already present')
+              raise SystemExit(0)
+
+          s = s.replace('[campaigns,setCampaigns]=useState([]),[settings,setSettings]=useState(null)', '[campaigns,setCampaigns]=useState([]),[deposits,setDeposits]=useState([]),[settings,setSettings]=useState(null)')
+          s = s.replace('supabase.from("engagement_campaigns").select("*").order("created_at",{ascending:false}),supabase.from("platform_settings")', 'supabase.from("engagement_campaigns").select("*").order("created_at",{ascending:false}),supabase.rpc("admin_get_deposit_history"),supabase.from("platform_settings")')
+          s = s.replace('setCampaigns(c.data||[]);setSettings(set.data||null)', 'setCampaigns(c.data||[]);setDeposits(d.data||[]);setSettings(set.data||null)')
+          s = s.replace('const [p,w,t,s,pl,c,set]=await Promise.all([', 'const [p,w,t,s,pl,c,d,set]=await Promise.all([')
+          s = s.replace('for(const r of [p,w,t,s,pl,c,set])', 'for(const r of [p,w,t,s,pl,c,d,set])')
+          s = s.replace("['settings','Settings'],['withdrawals','Withdrawals']", "['settings','Settings'],['deposits','Deposits'],['withdrawals','Withdrawals']")
+          marker = " {section==='withdrawals'&&<section className=\"gv-card\">"
+          deposit_section = ''' {section==='deposits'&&<section className="gv-card"><div className="eyebrow">DEPOSIT HISTORY</div><div className="admin-title"><h2>Deposits</h2><span className="gv-pill">{deposits.length}</span></div>{deposits.map(d=><div className="gv-row" key={d.id}><div><b>{d.full_name||'Unnamed user'}</b><div className="gv-muted">{d.user_id}</div><div>{d.payment_reference||'No payment reference'}</div><div className="gv-muted">{d.created_at?new Date(d.created_at).toLocaleString('en-NG'):''}</div></div><div style={{textAlign:'right'}}><b>₦{money(d.amount)}</b><div className="gv-pill">{d.status}</div></div></div>)}{!deposits.length&&<p className="gv-muted">No deposits found.</p>}</section>}\n'''
+          if marker not in s:
+              raise SystemExit('Could not find withdrawals section marker')
+          s = s.replace(marker, deposit_section + marker, 1)
+          p.write_text(s)
+          PY
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/Admin.jsx
+          git diff --cached --quiet || git commit -m "Add admin deposit history"
+          git push
