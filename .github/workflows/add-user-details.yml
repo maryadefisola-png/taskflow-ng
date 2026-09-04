@@ -1,0 +1,55 @@
+name: Add admin user financial details
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-admin:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch admin user details
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('src/Admin.jsx')
+          s=p.read_text()
+          if '[userDetails,setUserDetails]' in s:
+              print('User details already present')
+              raise SystemExit(0)
+
+          s=s.replace('[balanceEditor,setBalanceEditor]=useState(null)', '[balanceEditor,setBalanceEditor]=useState(null),[userDetails,setUserDetails]=useState(null)')
+          s=s.replace('supabase.rpc("admin_get_deposit_history"),supabase.from("platform_settings")', 'supabase.rpc("admin_get_deposit_history"),supabase.rpc("admin_get_user_financial_summary"),supabase.from("platform_settings")')
+          s=s.replace('const [p,w,t,s,pl,c,d,set]=await Promise.all([', 'const [p,w,t,s,pl,c,d,fd,set]=await Promise.all([')
+          s=s.replace('for(const r of [p,w,t,s,pl,c,d,set])', 'for(const r of [p,w,t,s,pl,c,d,fd,set])')
+          s=s.replace('setDeposits(d.data||[]);setSettings(set.data||null)', 'setDeposits(d.data||[]);setUserDetails(fd.data||[]);setSettings(set.data||null)')
+
+          anchor='async function saveBalance(){'
+          details_fn='''async function openUserDetails(id){\n const row=(userDetails||[]).find(x=>x.user_id===id);\n if(row)setUserDetails(prev=>prev.map(x=>x.user_id===id?{...x,_open:true}: {...x,_open:false}));\n}\n'''
+          if anchor not in s: raise SystemExit('saveBalance anchor not found')
+          s=s.replace(anchor,details_fn+anchor,1)
+
+          old='''<button className="gv-ghost compact" style={{marginTop:8}} onClick={()=>setBalanceEditor({id:p.id,name:p.full_name||'Unnamed user',task_balance:p.task_balance??0,affiliate_balance:p.affiliate_balance??0})}>Edit Balance</button>'''
+          new='''<div style={{display:'flex',gap:8,justifyContent:'flex-end',flexWrap:'wrap',marginTop:8}}><button className="gv-ghost compact" onClick={()=>openUserDetails(p.id)}>View Details</button><button className="gv-ghost compact" onClick={()=>setBalanceEditor({id:p.id,name:p.full_name||'Unnamed user',task_balance:p.task_balance??0,affiliate_balance:p.affiliate_balance??0})}>Edit Balance</button></div>'''
+          if old not in s: raise SystemExit('user button anchor not found')
+          s=s.replace(old,new,1)
+
+          marker="{section==='tasks'&&<><section className=\"gv-card\">"
+          detail_section='''{section==='users'&&userDetails?.some(x=>x._open)&&<section className="gv-card" style={{marginTop:16}}><div className="admin-title"><div><div className="eyebrow">USER DETAILS</div><h2>{userDetails.find(x=>x._open)?.full_name||'User'}</h2></div><button className="gv-ghost compact" onClick={()=>setUserDetails(prev=>prev.map(x=>({...x,_open:false})))}>Close</button></div>{(()=>{const u=userDetails.find(x=>x._open);if(!u)return null;return <div className="gv-stats" style={{marginTop:16}}><div className="gv-stat"><span>Task Balance</span><b>{naira(u.task_balance)}</b></div><div className="gv-stat"><span>Affiliate Balance</span><b>{naira(u.affiliate_balance)}</b></div><div className="gv-stat"><span>Total Deposited</span><b>{naira(u.total_deposited)}</b></div><div className="gv-stat"><span>Total Withdrawn</span><b>{naira(u.total_withdrawn)}</b></div><div className="gv-stat"><span>Task Earnings</span><b>{naira(u.total_task_earnings)}</b></div><div className="gv-stat"><span>Referrals</span><b>{u.referral_count||0}</b></div><div className="gv-stat"><span>Tasks Completed</span><b>{u.tasks_completed||0}</b></div><div className="gv-stat"><span>Investment Plan</span><b>{u.plan_name||'None'}</b></div><div className="gv-stat"><span>Plan Amount</span><b>{naira(u.plan_amount)}</b></div><div className="gv-stat"><span>Plan Status</span><b>{u.plan_status||'—'}</b></div><div className="gv-stat"><span>Activated</span><b>{u.plan_started_at?new Date(u.plan_started_at).toLocaleDateString('en-NG'):'—'}</b></div><div className="gv-stat"><span>Expires</span><b>{u.plan_expires_at?new Date(u.plan_expires_at).toLocaleDateString('en-NG'):'—'}</b></div><div className="gv-stat"><span>Registered</span><b>{u.registered_at?new Date(u.registered_at).toLocaleDateString('en-NG'):'—'}</b></div></div>})()}</section>}\n'''
+          if marker not in s: raise SystemExit('tasks marker not found')
+          s=s.replace(marker,detail_section+marker,1)
+          p.write_text(s)
+          PY
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/Admin.jsx
+          git diff --cached --quiet || git commit -m "Add admin user financial details"
+          git push
